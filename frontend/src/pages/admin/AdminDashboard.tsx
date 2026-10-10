@@ -522,14 +522,15 @@ export const AdminDashboard = () => {
           </div>
           <div className="h-72 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={[
-                { month: 'May', customers: 40 },
-                { month: 'Jun', customers: 65 },
-                { month: 'Jul', customers: 85 },
-                { month: 'Aug', customers: 120 },
-                { month: 'Sep', customers: 155 },
-                { month: 'Oct', customers: customers.length > 0 ? customers.length : 180 }
-              ]}>
+              <LineChart data={
+                customers.length === 0 ? [] : (() => {
+                  const months = ['May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'];
+                  return months.map(m => ({
+                    month: m,
+                    customers: m === 'Oct' ? customers.length : 0
+                  }));
+                })()
+              }>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5e5" />
                 <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{fill: '#737373', fontSize: 12}} dy={10} />
                 <YAxis axisLine={false} tickLine={false} tick={{fill: '#737373', fontSize: 12}} />
@@ -553,8 +554,8 @@ export const AdminDashboard = () => {
               <BarChart data={[
                 {
                   name: 'Overall', 
-                  Collected: customers.reduce((acc, c) => acc + (c.totalPaid || 0), 0) || 4500000,
-                  Pending: customers.reduce((acc, c) => acc + (c.pending || 0), 0) || 250000
+                  Collected: customers.reduce((acc, c) => acc + (c.totalPaid || 0), 0),
+                  Pending: customers.reduce((acc, c) => acc + (c.pending || 0), 0)
                 }
               ]} layout="vertical" margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e5e5e5" />
@@ -582,12 +583,17 @@ export const AdminDashboard = () => {
               <PieChart>
                 <Pie
                   data={(() => {
-                    const fixedTotal = chitGroups.filter(g => g.type === 'Fixed').reduce((acc, g) => acc + (g.value * g.members), 0) || 5000000;
-                    const auctionTotal = chitGroups.filter(g => g.type === 'Auction').reduce((acc, g) => acc + (g.value * g.members), 0) || 8000000;
+                    const fixedTotal = chitGroups.filter(g => g.type?.toUpperCase() === 'FIXED').reduce((acc, g) => acc + (g.value * g.members), 0);
+                    const auctionTotal = chitGroups.filter(g => g.type?.toUpperCase() === 'AUCTION').reduce((acc, g) => acc + (g.value * g.members), 0);
+                    
+                    if (fixedTotal === 0 && auctionTotal === 0) {
+                      return [{ name: 'No Data', value: 1 }];
+                    }
+                    
                     return [
                       { name: 'Fixed Plans', value: fixedTotal },
                       { name: 'Auction Plans', value: auctionTotal }
-                    ];
+                    ].filter(item => item.value > 0);
                   })()}
                   cx="50%"
                   cy="50%"
@@ -595,7 +601,7 @@ export const AdminDashboard = () => {
                   outerRadius={120}
                   paddingAngle={5}
                   dataKey="value"
-                  label={({name, percent}: any) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
+                  label={({name, percent}: any) => name === 'No Data' ? 'No Data' : `${name} ${((percent || 0) * 100).toFixed(0)}%`}
                 >
                   <Cell fill="#d97706" />
                   <Cell fill="#10b981" />
