@@ -94,7 +94,11 @@ export const AdminDashboard = () => {
   const handleSearchCustomer = (mobile: string) => {
     setSearchMobile(mobile);
     if (mobile.length >= 10) {
-      const match = customers.find(c => c.mobile.includes(mobile) || c.id.includes(mobile));
+      const match = customers.find(c => 
+        (c.mobile && c.mobile.includes(mobile)) || 
+        (c.phone && c.phone.includes(mobile)) || 
+        (c.id && c.id.includes(mobile))
+      );
       setFoundCustomer(match || null);
     } else {
       setFoundCustomer(null);
