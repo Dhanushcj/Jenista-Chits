@@ -2,34 +2,38 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
+import { fetchClient } from '../../api/client';
 
 export const CustomerRegistrationPage = () => {
   const [name, setName] = useState('');
   const [mobile, setMobile] = useState('');
   const [address, setAddress] = useState('');
   const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
   const navigate = useNavigate();
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    const urlParams = new URLSearchParams(window.location.search);
-    const ref = urlParams.get('ref');
-    
-    // Mock registration logic
-    const customers = JSON.parse(localStorage.getItem('mockCustomers') || '[]');
-    const newCustomer = {
-      id: `TC-${Math.floor(Math.random() * 90000) + 10000}`,
-      name,
-      mobile,
-      address,
-      password,
-      status: 'PENDING_APPROVAL',
-      referredBy: ref || null,
-      chits: []
-    };
-    localStorage.setItem('mockCustomers', JSON.stringify([...customers, newCustomer]));
-    // Redirect to login
-    navigate('/customer-login', { state: { message: 'Registration successful! Your account is pending admin approval.' } });
+    setIsLoading(true);
+    setError('');
+
+    try {
+      await fetchClient('/customers', {
+        method: 'POST',
+        body: JSON.stringify({
+          name,
+          mobile,
+          address,
+          password
+        })
+      });
+      navigate('/customer-login', { state: { message: 'Registration successful! Your account is pending admin approval.' } });
+    } catch (err: any) {
+      setError(err.message || 'Registration failed');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -85,8 +89,14 @@ export const CustomerRegistrationPage = () => {
               placeholder="Create a strong password"
             />
 
-            <Button type="submit" className="w-full">
-              Register Account
+            {error && (
+              <div className="bg-danger-light/20 text-danger text-sm p-3 rounded-md border border-danger/20">
+                {error}
+              </div>
+            )}
+
+            <Button type="submit" className="w-full justify-center" disabled={isLoading}>
+              {isLoading ? 'Registering...' : 'Register Account'}
             </Button>
           </form>
         </div>
