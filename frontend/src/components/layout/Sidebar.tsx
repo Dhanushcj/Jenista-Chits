@@ -76,7 +76,7 @@ export const Sidebar = ({ isOpen, setIsOpen }: SidebarProps) => {
         {/* Sidebar Header */}
         <div className="h-16 flex items-center px-5 border-b border-primary-900 bg-primary-950 shrink-0 whitespace-nowrap">
           <img src="/assets/Chit logo.jpg.jpeg" alt="Logo" className="h-7 w-7 object-contain rounded shrink-0" />
-          <span className="ml-4 font-bold text-white text-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 lg:opacity-0 lg:group-hover:opacity-100">TrustChit Admin</span>
+          <span className="ml-4 font-bold text-white text-lg opacity-100 transition-opacity duration-300 lg:opacity-0 lg:group-hover:opacity-100">TrustChit Admin</span>
         </div>
 
         {/* Navigation Links */}
@@ -99,7 +99,7 @@ export const Sidebar = ({ isOpen, setIsOpen }: SidebarProps) => {
                 )}
               >
                 <item.icon className="h-5 w-5 shrink-0" />
-                <span className="ml-4 font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex-1 flex items-center justify-between">
+                <span className="ml-4 font-medium opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity duration-300 flex-1 flex items-center justify-between">
                   {item.name}
                   {item.subItems && (
                     <ChevronDown className={cn("w-4 h-4 transition-transform", openSubmenu === item.name ? "rotate-180" : "")} />
@@ -110,7 +110,7 @@ export const Sidebar = ({ isOpen, setIsOpen }: SidebarProps) => {
               {/* Expandable Submenu (only visible when sidebar is hovered/expanded) */}
               {item.subItems && (
                 <div className={cn(
-                  "flex-col space-y-1 ml-12 mt-1 hidden group-hover:flex overflow-hidden transition-all duration-300",
+                  "flex-col space-y-1 ml-12 mt-1 flex lg:hidden lg:group-hover:flex overflow-hidden transition-all duration-300",
                   openSubmenu === item.name ? "max-h-40 opacity-100" : "max-h-0 opacity-0"
                 )}>
                   {item.subItems.map(subItem => (
@@ -136,7 +136,7 @@ export const Sidebar = ({ isOpen, setIsOpen }: SidebarProps) => {
           <div className="w-8 h-8 rounded-full bg-primary-800 flex items-center justify-center text-white font-bold shrink-0">
             AD
           </div>
-          <div className="ml-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+          <div className="ml-4 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity duration-300">
             <p className="text-sm font-bold text-white">Admin User</p>
             <p className="text-xs text-neutral-500">System Administrator</p>
           </div>
