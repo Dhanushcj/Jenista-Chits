@@ -2,17 +2,39 @@ import { Request, Response, NextFunction } from 'express';
 import { Customer } from './customer.model';
 import { ApiError } from '../../common/ApiError';
 import { AuthRequest } from '../../middleware/authenticate';
+import bcrypt from 'bcryptjs';
 
 export class CustomerController {
   static async createCustomer(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const existing = await Customer.findOne({ customerCode: req.body.customerCode });
-      if (existing) {
-        throw new ApiError(400, 'Customer code already exists', 'VALIDATION_ERROR');
+      const { name, mobile, address, password } = req.body;
+      
+      const phone = mobile || req.body.phone;
+      const fullName = name || req.body.fullName;
+      
+      if (!phone || !fullName) {
+        throw new ApiError(400, 'Name and Mobile are required', 'VALIDATION_ERROR');
       }
+
+      const existing = await Customer.findOne({ phone });
+      if (existing) {
+        throw new ApiError(400, 'Customer with this mobile already exists', 'VALIDATION_ERROR');
+      }
+
+      let passwordHash;
+      if (password) {
+        passwordHash = await bcrypt.hash(password, 10);
+      }
+
+      const customerCode = req.body.customerCode || `TC-${Math.floor(Math.random() * 90000) + 10000}`;
 
       const customer = await Customer.create({
         ...req.body,
+        customerCode,
+        fullName,
+        phone,
+        address: address || req.body.address,
+        passwordHash,
         createdBy: req.user?.userId,
       });
       res.status(201).json({ success: true, data: customer });

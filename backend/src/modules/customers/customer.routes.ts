@@ -5,9 +5,11 @@ import { authorize } from '../../middleware/authorize';
 
 const router = Router();
 
-router.use(authenticate);
+// Public route for customer registration
+router.post('/', CustomerController.createCustomer);
 
-router.post('/', authorize(['customers.create']), CustomerController.createCustomer);
+// Protected routes
+router.use(authenticate);
 router.get('/', authorize(['customers.read']), CustomerController.getCustomers);
 
 export default router;

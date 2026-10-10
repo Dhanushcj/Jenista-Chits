@@ -28,17 +28,18 @@ export interface ICustomer extends Document {
 
 const CustomerSchema: Schema = new Schema(
   {
-    customerCode: { type: String, required: true, unique: true },
+    customerCode: { type: String, unique: true },
     fullName: { type: String, required: true },
     phone: { type: String, required: true },
     alternatePhone: { type: String },
     email: { type: String },
+    passwordHash: { type: String },
     dateOfBirth: { type: Date },
     gender: { type: String, enum: ['MALE', 'FEMALE', 'OTHER'] },
     photo: { type: String },
-    address: { type: String, required: true },
+    address: { type: String },
     occupation: { type: String },
-    branchId: { type: Schema.Types.ObjectId, ref: 'Branch', required: true },
+    branchId: { type: Schema.Types.ObjectId, ref: 'Branch' },
     assignedAgentId: { type: Schema.Types.ObjectId, ref: 'User' },
     kycStatus: {
       type: String,
