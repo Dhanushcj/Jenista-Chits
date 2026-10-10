@@ -34,7 +34,7 @@ export const CustomerDashboard = () => {
     window.addEventListener('storage', loadCustomerData);
 
         const ledger = JSON.parse(localStorage.getItem('ledgerTransactions') || '[]');
-        const myTransactions = ledger.filter((t: any) => t.reference && t.reference.includes(user.id));
+        const myTransactions = ledger.filter((t: any) => t.reference && user?.id && t.reference.includes(user.id));
         setTransactions(myTransactions);
 
     return () => {

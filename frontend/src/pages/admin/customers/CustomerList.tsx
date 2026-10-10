@@ -40,7 +40,7 @@ export const CustomerList = () => {
 
   const handleDeleteCustomer = (id: string) => {
     if (window.confirm("Are you sure you want to delete this customer?")) {
-      const updatedCustomers = allCustomers.filter(c => c.id !== id);
+      const updatedCustomers = allCustomers.filter((c: any) => c.id !== id);
       setAllCustomers(updatedCustomers);
       
       const saved = localStorage.getItem('mockCustomers');
@@ -50,7 +50,7 @@ export const CustomerList = () => {
         localStorage.setItem('mockCustomers', JSON.stringify(newStorage));
       }
       
-      setFilteredCustomers(prev => prev.filter(c => c.id !== id));
+      setFilteredCustomers(prev => prev.filter((c: any) => c.id !== id));
     }
   };
 
@@ -62,7 +62,7 @@ export const CustomerList = () => {
       return;
     }
 
-    const results = allCustomers.filter(c => {
+    const results = allCustomers.filter((c: any) => {
       const matchName = searchName ? c.name.toLowerCase().includes(searchName.toLowerCase()) : true;
       const matchMobile = searchMobile ? c.phone.includes(searchMobile) : true;
       const matchAadhar = searchAadhar ? c.aadhar.replace(/\s/g, '').includes(searchAadhar.replace(/\s/g, '')) : true;

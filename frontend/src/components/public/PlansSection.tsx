@@ -1,4 +1,4 @@
-import { ShieldCheck, Lock, Gavel, CheckCircle2, ArrowRight } from 'lucide-react';
+import { ShieldCheck, Lock, Gavel, ArrowRight } from 'lucide-react';
 
 const PLANS = [
   {

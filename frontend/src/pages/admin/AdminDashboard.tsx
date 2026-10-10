@@ -556,7 +556,7 @@ export const AdminDashboard = () => {
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e5e5e5" />
                 <XAxis type="number" hide />
                 <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} hide />
-                <RechartsTooltip cursor={{fill: '#f5f5f5'}} formatter={(value: number) => formatCurrency(value)} contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} />
+                <RechartsTooltip cursor={{fill: '#f5f5f5'}} formatter={(value: any) => formatCurrency(Number(value))} contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} />
                 <Legend iconType="circle" wrapperStyle={{paddingTop: '20px'}} />
                 <Bar dataKey="Collected" fill="#10b981" radius={[0, 4, 4, 0]} barSize={40} />
                 <Bar dataKey="Pending" fill="#ef4444" radius={[0, 4, 4, 0]} barSize={40} />
@@ -591,12 +591,12 @@ export const AdminDashboard = () => {
                   outerRadius={120}
                   paddingAngle={5}
                   dataKey="value"
-                  label={({name, percent}) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  label={({name, percent}: any) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
                 >
                   <Cell fill="#d97706" />
                   <Cell fill="#10b981" />
                 </Pie>
-                <RechartsTooltip formatter={(value: number) => formatCurrency(value)} contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} />
+                <RechartsTooltip formatter={(value: any) => formatCurrency(Number(value))} contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} />
                 <Legend verticalAlign="bottom" height={36} iconType="circle" />
               </PieChart>
             </ResponsiveContainer>
