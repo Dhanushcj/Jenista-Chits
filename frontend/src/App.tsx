@@ -16,7 +16,6 @@ import { AddModifyCustomerChit } from './pages/admin/customers/AddModifyCustomer
 import { ChitGroupList } from './pages/admin/chits/ChitGroupList';
 import { ChitGroupDetail } from './pages/admin/chits/ChitGroupDetail';
 import { Ledger } from './pages/admin/finance/Ledger';
-import { Payments } from './pages/admin/finance/Payments';
 import { Settings } from './pages/admin/management/Settings';
 import { ReceiptEntry } from './pages/admin/finance/ReceiptEntry';
 import { NonPayersReport } from './pages/admin/reports/NonPayersReport';

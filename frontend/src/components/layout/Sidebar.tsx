@@ -5,8 +5,6 @@ import {
   LayoutDashboard, 
   Users, 
   Layers, 
-  CreditCard, 
-  Gavel, 
   FileText, 
   Settings,
   ChevronDown
