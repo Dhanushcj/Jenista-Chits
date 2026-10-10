@@ -69,7 +69,7 @@ export const AdminDashboard = () => {
   };
 
   const handleCreateGroup = () => {
-    const val = Number(newGroupValue);
+    const val = selectedCategory?.value;
     const mem = Number(newGroupMembers);
     if (!val || !mem || !newGroupName.trim() || !selectedCategory) return;
 
@@ -407,9 +407,9 @@ export const AdminDashboard = () => {
                   <label className="block text-sm font-medium text-neutral-700 mb-1">Chit Value (₹)</label>
                   <input 
                     type="number"
-                    className="w-full border border-neutral-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    className="w-full border border-neutral-300 rounded-md px-3 py-2 text-sm bg-neutral-100 cursor-not-allowed text-neutral-500"
                     value={newGroupValue}
-                    onChange={(e) => setNewGroupValue(e.target.value)}
+                    disabled
                   />
                 </div>
                 <div>
