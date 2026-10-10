@@ -143,23 +143,23 @@ export const AdminDashboard = () => {
 
     return (
       <div className="space-y-6 animate-in fade-in duration-300">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-start sm:items-center gap-3 sm:gap-4">
             <button 
               onClick={handleBackToGroups}
-              className="p-2 bg-white border border-neutral-200 rounded-lg hover:bg-neutral-50 transition-colors"
+              className="p-2 bg-white border border-neutral-200 rounded-lg hover:bg-neutral-50 transition-colors shrink-0 mt-1 sm:mt-0"
             >
               <ArrowLeft className="w-5 h-5 text-neutral-600" />
             </button>
             <div>
-              <h1 className="text-2xl font-bold text-primary-900 tracking-tight">{selectedGroup.name || selectedGroup.id}</h1>
-              <p className="text-sm text-neutral-500">
+              <h1 className="text-xl sm:text-2xl font-bold text-primary-900 tracking-tight">{selectedGroup.name || selectedGroup.id}</h1>
+              <p className="text-xs sm:text-sm text-neutral-500">
                 {selectedCategory?.type} • {formatCurrency(selectedCategory?.value || 0)} • {groupCustomers.length} Customers Enrolled
               </p>
             </div>
           </div>
           <button 
-            className="btn-primary flex items-center text-sm"
+            className="btn-primary flex items-center justify-center text-sm w-full sm:w-auto"
             onClick={() => {
               setCustomChitValue(selectedGroup?.value?.toString() || '');
               setIsAddCustomerModalOpen(true);
@@ -172,7 +172,7 @@ export const AdminDashboard = () => {
         <div className="bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-neutral-200">
-              <thead className="bg-neutral-50">
+              <thead className="bg-neutral-50 whitespace-nowrap">
                 <tr>
                   <th className="px-6 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-wider">Customer Info</th>
                   <th className="px-6 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-wider">Mobile</th>
@@ -181,7 +181,7 @@ export const AdminDashboard = () => {
                   <th className="px-6 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-wider">Payment Status</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-neutral-100">
+              <tbody className="bg-white divide-y divide-neutral-100 whitespace-nowrap">
                 {groupCustomers.length === 0 ? (
                   <tr>
                     <td colSpan={4} className="px-6 py-12 text-center text-neutral-500">No customers enrolled in this group yet.</td>
@@ -311,23 +311,23 @@ export const AdminDashboard = () => {
     
     return (
       <div className="space-y-6 animate-in fade-in duration-300">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-start sm:items-center gap-3 sm:gap-4">
             <button 
               onClick={handleBackToCategories}
-              className="p-2 bg-white border border-neutral-200 rounded-lg hover:bg-neutral-50 transition-colors"
+              className="p-2 bg-white border border-neutral-200 rounded-lg hover:bg-neutral-50 transition-colors shrink-0 mt-1 sm:mt-0"
             >
               <ArrowLeft className="w-5 h-5 text-neutral-600" />
             </button>
             <div>
-              <h1 className="text-2xl font-bold text-primary-900 tracking-tight">
+              <h1 className="text-xl sm:text-2xl font-bold text-primary-900 tracking-tight">
                 {selectedCategory.type} Plan - {formatCurrency(selectedCategory.value)}
               </h1>
-              <p className="text-sm text-neutral-500">Select a group to view enrolled customers.</p>
+              <p className="text-xs sm:text-sm text-neutral-500">Select a group to view enrolled customers.</p>
             </div>
           </div>
           <button 
-            className="btn-primary flex items-center text-sm"
+            className="btn-primary flex items-center justify-center text-sm w-full sm:w-auto"
             onClick={() => {
               setNewGroupValue(selectedCategory.value.toString());
               setNewGroupMembers('20');
@@ -342,7 +342,7 @@ export const AdminDashboard = () => {
         <div className="bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-neutral-200">
-              <thead className="bg-neutral-50">
+              <thead className="bg-neutral-50 whitespace-nowrap">
                 <tr>
                   <th className="px-6 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-wider">Group Name</th>
                   <th className="px-6 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-wider">Group ID</th>
@@ -351,7 +351,7 @@ export const AdminDashboard = () => {
                   <th className="px-6 py-4 text-right text-xs font-bold text-neutral-500 uppercase tracking-wider">Action</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-neutral-100">
+              <tbody className="bg-white divide-y divide-neutral-100 whitespace-nowrap">
                 {matchingGroups.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="px-6 py-12 text-center text-neutral-500">
