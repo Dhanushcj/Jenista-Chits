@@ -448,8 +448,9 @@ export const CustomerProfile = () => {
             <div className="p-6 border-b border-neutral-200 flex justify-between items-center">
               <h3 className="text-lg font-bold text-neutral-900">Payment History</h3>
             </div>
-            <table className="w-full text-left">
-              <thead className="bg-neutral-50 text-xs font-bold text-neutral-500 uppercase tracking-wider border-b border-neutral-200">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left min-w-full">
+                <thead className="bg-neutral-50 text-xs font-bold text-neutral-500 uppercase tracking-wider border-b border-neutral-200">
                 <tr>
                   <th className="p-4">Receipt ID</th>
                   <th className="p-4">Date</th>
@@ -490,6 +491,7 @@ export const CustomerProfile = () => {
                 })()}
               </tbody>
             </table>
+            </div>
           </div>
         )}
 
