@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://localhost:5000/api/v1';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://jenista-chits.onrender.com/api/v1';
 
 export const fetchClient = async (endpoint: string, options: RequestInit = {}) => {
   const token = localStorage.getItem('token');
