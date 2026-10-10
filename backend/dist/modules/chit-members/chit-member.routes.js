@@ -1,0 +1,11 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const chit_member_controller_1 = require("./chit-member.controller");
+const authenticate_1 = require("../../middleware/authenticate");
+const authorize_1 = require("../../middleware/authorize");
+const router = (0, express_1.Router)({ mergeParams: true });
+router.use(authenticate_1.authenticate);
+router.post('/', (0, authorize_1.authorize)(['chits.create']), chit_member_controller_1.ChitMemberController.addMember);
+router.get('/', (0, authorize_1.authorize)(['chits.read']), chit_member_controller_1.ChitMemberController.getMembersByGroup);
+exports.default = router;

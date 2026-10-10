@@ -1,0 +1,12 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const reports_controller_1 = require("./reports.controller");
+const authenticate_1 = require("../../middleware/authenticate");
+const authorize_1 = require("../../middleware/authorize");
+const router = (0, express_1.Router)();
+router.use(authenticate_1.authenticate);
+router.get('/defaulters', (0, authorize_1.authorize)(['reports.read']), reports_controller_1.ReportsController.getDefaultersList);
+router.get('/upcoming-auctions', (0, authorize_1.authorize)(['reports.read']), reports_controller_1.ReportsController.getUpcomingAuctions);
+router.get('/agent-collections', (0, authorize_1.authorize)(['reports.read']), reports_controller_1.ReportsController.getAgentCollectionReports);
+exports.default = router;

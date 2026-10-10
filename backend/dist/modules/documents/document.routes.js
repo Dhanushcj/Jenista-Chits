@@ -1,0 +1,12 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const document_controller_1 = require("./document.controller");
+const authenticate_1 = require("../../middleware/authenticate");
+const authorize_1 = require("../../middleware/authorize");
+const router = (0, express_1.Router)();
+router.use(authenticate_1.authenticate);
+router.post('/', (0, authorize_1.authorize)(['documents.create']), document_controller_1.DocumentController.uploadDocumentMetadata);
+router.get('/:entityType/:entityId', (0, authorize_1.authorize)(['documents.read']), document_controller_1.DocumentController.getDocumentsByEntity);
+router.patch('/:id/verify', (0, authorize_1.authorize)(['documents.verify']), document_controller_1.DocumentController.verifyDocument);
+exports.default = router;

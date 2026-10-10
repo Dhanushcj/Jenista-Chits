@@ -1,0 +1,11 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const company_controller_1 = require("./company.controller");
+const authenticate_1 = require("../../middleware/authenticate");
+const authorize_1 = require("../../middleware/authorize");
+const router = (0, express_1.Router)();
+router.use(authenticate_1.authenticate);
+router.post('/', (0, authorize_1.authorize)(['companies.manage']), company_controller_1.CompanyController.createCompany);
+router.get('/', (0, authorize_1.authorize)(['companies.read']), company_controller_1.CompanyController.getCompanies);
+exports.default = router;

@@ -1,0 +1,245 @@
+import { useState } from 'react';
+import { ActionLayout } from '../../../components/layout/ActionLayout';
+import type { ActionType } from '../../../components/layout/ActionLayout';
+import { Search, Eye, Trash2 } from 'lucide-react';
+import { Button } from '../../../components/common/Button';
+import { formatCurrency } from '../../../utils/format';
+import { Link } from 'react-router-dom';
+
+export const CustomerList = () => {
+  const [searchName, setSearchName] = useState('');
+  const [searchMobile, setSearchMobile] = useState('');
+  const [searchAadhar, setSearchAadhar] = useState('');
+  const [searchPan, setSearchPan] = useState('');
+  const [hasSearched, setHasSearched] = useState(false);
+  const [filteredCustomers, setFilteredCustomers] = useState<any[]>([]);
+
+  // Mock data loaded from localStorage
+  const [allCustomers, setAllCustomers] = useState(() => {
+    const saved = localStorage.getItem('mockCustomers');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      // Normalize schema in case they were added from AddModifyCustomer
+      return parsed.map((p: any) => ({
+        ...p,
+        phone: p.phone || p.mobile, 
+        branch: p.branch || 'Head Office',
+        agent: p.agent || 'System Admin',
+        pending: p.pending || 0,
+        activeChits: p.activeChits || 0,
+        status: p.status || 'ACTIVE'
+      }));
+    }
+    return [
+      { id: 'TC-10045', name: 'Rahul Sharma', phone: '+91 9876543210', aadhar: '1234 5678 9012', pan: 'ABCDE1234F', branch: 'Delhi Main', activeChits: 2, pending: 45000, agent: 'Amit Kumar', status: 'ACTIVE' },
+      { id: 'TC-10046', name: 'Priya Patel', phone: '+91 9876543211', aadhar: '9876 5432 1098', pan: 'VWXYZ5678G', branch: 'Mumbai Central', activeChits: 1, pending: 0, agent: 'Raj Singh', status: 'ACTIVE' },
+      { id: 'TC-10047', name: 'Vikram Singh', phone: '+91 9876543212', aadhar: '4567 8901 2345', pan: 'PQRS0987H', branch: 'Delhi Main', activeChits: 3, pending: 125000, agent: 'Amit Kumar', status: 'OVERDUE' },
+      { id: 'TC-10048', name: 'Anita Desai', phone: '+91 9876543213', aadhar: '3456 7890 1234', pan: 'LMNOP5432J', branch: 'Pune East', activeChits: 1, pending: 15000, agent: 'Suresh Patil', status: 'ACTIVE' },
+    ];
+  });
+
+  const handleDeleteCustomer = (id: string) => {
+    if (window.confirm("Are you sure you want to delete this customer?")) {
+      const updatedCustomers = allCustomers.filter(c => c.id !== id);
+      setAllCustomers(updatedCustomers);
+      
+      const saved = localStorage.getItem('mockCustomers');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        const newStorage = parsed.filter((c: any) => c.id !== id);
+        localStorage.setItem('mockCustomers', JSON.stringify(newStorage));
+      }
+      
+      setFilteredCustomers(prev => prev.filter(c => c.id !== id));
+    }
+  };
+
+  const handleSearch = () => {
+    // If all fields are empty, don't show any results
+    if (!searchName && !searchMobile && !searchAadhar && !searchPan) {
+      setFilteredCustomers([]);
+      setHasSearched(true);
+      return;
+    }
+
+    const results = allCustomers.filter(c => {
+      const matchName = searchName ? c.name.toLowerCase().includes(searchName.toLowerCase()) : true;
+      const matchMobile = searchMobile ? c.phone.includes(searchMobile) : true;
+      const matchAadhar = searchAadhar ? c.aadhar.replace(/\s/g, '').includes(searchAadhar.replace(/\s/g, '')) : true;
+      const matchPan = searchPan ? c.pan.toLowerCase().includes(searchPan.toLowerCase()) : true;
+      
+      return matchName && matchMobile && matchAadhar && matchPan;
+    });
+
+    setFilteredCustomers(results);
+    setHasSearched(true);
+  };
+
+  const handleClear = () => {
+    setSearchName('');
+    setSearchMobile('');
+    setSearchAadhar('');
+    setSearchPan('');
+    setHasSearched(false);
+    setFilteredCustomers([]);
+  };
+
+  const renderContent = (action: ActionType) => {
+    const isViewActive = action === 'VIEW';
+
+    return (
+      <div className="flex justify-center w-full">
+        <div className="w-full max-w-5xl space-y-6">
+          <div className="card p-0 overflow-hidden bg-white border border-neutral-200">
+            <div className="p-8 border-b border-neutral-200 bg-white flex justify-center">
+              <div className="w-full max-w-lg">
+                <h3 className="text-lg font-bold text-neutral-800 mb-6 text-center">Search Customer Details</h3>
+                
+                <div className="flex flex-col gap-4">
+                  {/* Name */}
+                  <div className={`flex border rounded-md overflow-hidden transition-all ${isViewActive ? 'border-neutral-300 focus-within:ring-1 focus-within:ring-primary-900 focus-within:border-primary-900' : 'border-neutral-200 opacity-70'}`}>
+                    <div className="bg-neutral-100 px-4 py-2.5 flex items-center border-r border-neutral-200 w-36 text-sm font-semibold text-neutral-700 shrink-0">
+                      Name
+                    </div>
+                    <div className="flex-1 relative flex items-center bg-white">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <Search className={`h-4 w-4 ${isViewActive ? 'text-neutral-400' : 'text-neutral-300'}`} />
+                      </div>
+                      <input 
+                        disabled={!isViewActive}
+                        className="w-full pl-9 pr-3 py-2.5 text-sm outline-none bg-transparent disabled:cursor-not-allowed" 
+                        value={searchName}
+                        onChange={(e) => setSearchName(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Mobile Number */}
+                  <div className={`flex border rounded-md overflow-hidden transition-all ${isViewActive ? 'border-neutral-300 focus-within:ring-1 focus-within:ring-primary-900 focus-within:border-primary-900' : 'border-neutral-200 opacity-70'}`}>
+                    <div className="bg-neutral-100 px-4 py-2.5 flex items-center border-r border-neutral-200 w-36 text-sm font-semibold text-neutral-700 shrink-0">
+                      Mobile Number
+                    </div>
+                    <input 
+                      disabled={!isViewActive}
+                      className="flex-1 px-3 py-2.5 text-sm outline-none bg-white disabled:bg-neutral-50 disabled:cursor-not-allowed"
+                      value={searchMobile}
+                      onChange={(e) => setSearchMobile(e.target.value)}
+                    />
+                  </div>
+
+                  {/* Aadhar Number */}
+                  <div className={`flex border rounded-md overflow-hidden transition-all ${isViewActive ? 'border-neutral-300 focus-within:ring-1 focus-within:ring-primary-900 focus-within:border-primary-900' : 'border-neutral-200 opacity-70'}`}>
+                    <div className="bg-neutral-100 px-4 py-2.5 flex items-center border-r border-neutral-200 w-36 text-sm font-semibold text-neutral-700 shrink-0">
+                      Aadhar Number
+                    </div>
+                    <input 
+                      disabled={!isViewActive}
+                      className="flex-1 px-3 py-2.5 text-sm outline-none bg-white disabled:bg-neutral-50 disabled:cursor-not-allowed"
+                      value={searchAadhar}
+                      onChange={(e) => setSearchAadhar(e.target.value)}
+                    />
+                  </div>
+
+                  {/* PAN Number */}
+                  <div className={`flex border rounded-md overflow-hidden transition-all ${isViewActive ? 'border-neutral-300 focus-within:ring-1 focus-within:ring-primary-900 focus-within:border-primary-900' : 'border-neutral-200 opacity-70'}`}>
+                    <div className="bg-neutral-100 px-4 py-2.5 flex items-center border-r border-neutral-200 w-36 text-sm font-semibold text-neutral-700 shrink-0">
+                      PAN Number
+                    </div>
+                    <input 
+                      disabled={!isViewActive}
+                      className="flex-1 px-3 py-2.5 text-sm outline-none bg-white disabled:bg-neutral-50 disabled:cursor-not-allowed"
+                      value={searchPan}
+                      onChange={(e) => setSearchPan(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-center pt-8">
+                  <Button 
+                    variant={isViewActive ? "primary" : "secondary"} 
+                    className="w-48" 
+                    onClick={handleSearch}
+                    disabled={!isViewActive}
+                  >
+                    Search
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {isViewActive && hasSearched && filteredCustomers.length > 0 && (
+              <div className="overflow-x-auto min-h-[300px] bg-white">
+                <table className="min-w-full divide-y divide-neutral-200">
+                  <thead>
+                    <tr>
+                      <th className="table-header text-center">Customer</th>
+                      <th className="table-header text-center">Contact</th>
+                      <th className="table-header text-center">Identity</th>
+                      <th className="table-header text-center">Branch / Agent</th>
+                      <th className="table-header text-center">Pending Dues</th>
+                      <th className="table-header text-center">Status</th>
+                      <th className="table-header text-center">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-neutral-200 text-center">
+                    {filteredCustomers.map((c) => (
+                      <tr key={c.id} className="hover:bg-neutral-50 transition-colors">
+                        <td className="table-cell">
+                          <Link to={`/admin/customers/${c.id}`} className="font-medium text-primary-900 hover:text-primary-600 hover:underline transition-colors block">
+                            {c.name}
+                          </Link>
+                          <div className="text-xs text-neutral-500">{c.id}</div>
+                        </td>
+                        <td className="table-cell text-neutral-600">{c.phone}</td>
+                        <td className="table-cell">
+                          <div className="text-xs text-neutral-900">Aadhar: {c.aadhar}</div>
+                          <div className="text-xs text-neutral-500">PAN: {c.pan}</div>
+                        </td>
+                        <td className="table-cell">
+                          <div className="text-neutral-900">{c.branch}</div>
+                          <div className="text-xs text-neutral-500">{c.agent}</div>
+                        </td>
+                        <td className="table-cell">
+                          <span className={c.pending > 0 ? "text-danger font-medium" : "text-success font-medium"}>
+                            {formatCurrency(c.pending)}
+                          </span>
+                        </td>
+                        <td className="table-cell">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                            c.status === 'ACTIVE' ? 'bg-success-light text-success' : 'bg-danger-light text-danger'
+                          }`}>
+                            {c.status}
+                          </span>
+                        </td>
+                        <td className="table-cell">
+                          <div className="flex items-center justify-center space-x-3">
+                            <Link to={`/admin/customers/${c.id}`} className="text-neutral-400 hover:text-primary-900 transition-colors" title="View Profile">
+                              <Eye className="w-4 h-4" />
+                            </Link>
+                            <button onClick={() => handleDeleteCustomer(c.id)} className="text-neutral-400 hover:text-danger transition-colors" title="Delete Customer">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <ActionLayout 
+      title="Customer Details"
+      allowedActions={['VIEW']}
+      renderContent={renderContent}
+      onClear={handleClear}
+      onCancel={handleClear}
+    />
+  );
+};

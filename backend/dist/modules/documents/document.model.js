@@ -1,0 +1,66 @@
+"use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.AppDocument = void 0;
+const mongoose_1 = __importStar(require("mongoose"));
+const DocumentSchema = new mongoose_1.Schema({
+    entityType: {
+        type: String,
+        enum: ['CUSTOMER', 'CHIT_GROUP', 'USER', 'COMPANY'],
+        required: true,
+    },
+    entityId: { type: mongoose_1.Schema.Types.ObjectId, required: true },
+    documentType: {
+        type: String,
+        enum: ['ID_PROOF', 'ADDRESS_PROOF', 'INCOME_PROOF', 'PHOTO', 'AGREEMENT', 'RECEIPT', 'OTHER'],
+        required: true,
+    },
+    documentName: { type: String, required: true },
+    s3Key: { type: String, required: true, unique: true },
+    originalFilename: { type: String, required: true },
+    mimeType: { type: String, required: true },
+    size: { type: Number, required: true },
+    status: {
+        type: String,
+        enum: ['UPLOADED', 'VERIFIED', 'REJECTED'],
+        default: 'UPLOADED',
+    },
+    uploadedBy: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User', required: true },
+    verifiedBy: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User' },
+    verifiedAt: { type: Date },
+}, { timestamps: true });
+DocumentSchema.index({ entityType: 1, entityId: 1 });
+DocumentSchema.index({ status: 1 });
+exports.AppDocument = mongoose_1.default.model('Document', DocumentSchema);

@@ -1,0 +1,12 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const auction_controller_1 = require("./auction.controller");
+const authenticate_1 = require("../../middleware/authenticate");
+const authorize_1 = require("../../middleware/authorize");
+const router = (0, express_1.Router)();
+router.use(authenticate_1.authenticate);
+router.post('/:id/bids', (0, authorize_1.authorize)(['auctions.conduct']), auction_controller_1.AuctionController.submitBid);
+router.post('/:id/finalize', (0, authorize_1.authorize)(['auctions.finalize']), auction_controller_1.AuctionController.finalizeAuction);
+router.get('/', (0, authorize_1.authorize)(['auctions.read']), auction_controller_1.AuctionController.getAuctions);
+exports.default = router;
