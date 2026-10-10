@@ -41,7 +41,7 @@ export const Sidebar = ({ isOpen, setIsOpen }: SidebarProps) => {
       ]
     },
     { name: 'Chit Groups', href: '/admin/chit-groups', icon: Layers },
-    { name: 'Payments', href: '/admin/payments', icon: CreditCard },
+
     { name: 'Ledger', href: '/admin/ledger', icon: FileText },
     { name: 'Auctions', href: '/admin/auctions', icon: Gavel },
     { 

@@ -55,7 +55,7 @@ function App() {
               <Route path="/admin/chit-groups" element={<ChitGroupList />} />
               <Route path="/admin/chit-groups/:id" element={<ChitGroupDetail />} />
               <Route path="/admin/ledger" element={<Ledger />} />
-              <Route path="/admin/payments" element={<Payments />} />
+
               <Route path="/admin/receipts" element={<ReceiptEntry />} />
               <Route path="/admin/settings" element={<Settings />} />
               <Route path="/admin/reports/non-payers" element={<NonPayersReport />} />
