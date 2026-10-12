@@ -30,19 +30,30 @@ export const CustomerList = () => {
       try {
         const res = await fetchClient('/customers');
         if (res && res.data && Array.isArray(res.data)) {
-          const mapped = res.data.map((c: any) => ({
-            id: c.customerCode || c._id,
-            mongoId: c._id,
-            name: c.fullName || c.name,
-            phone: c.phone || c.mobile,
-            aadhar: c.aadhar || '—',
-            pan: c.pan || '—',
-            branch: c.branchId?.branchName || c.branch || 'Head Office',
-            agent: c.assignedAgentId?.name || c.agent || 'System Admin',
-            pending: c.pending || 0,
-            activeChits: c.activeChits || 0,
-            status: c.status || 'ACTIVE'
-          }));
+          const localSaved = JSON.parse(localStorage.getItem('mockCustomers') || '[]');
+          const mapped = res.data.map((c: any) => {
+            const local = localSaved.find((lc: any) => 
+              lc.id === (c.customerCode || c._id) || 
+              lc.mongoId === c._id || 
+              (lc.phone && (lc.phone === c.phone || lc.mobile === c.phone))
+            );
+            const chits = (c.chits && c.chits.length > 0) ? c.chits : (local?.chits || []);
+            return {
+              id: c.customerCode || c._id,
+              mongoId: c._id,
+              name: c.fullName || c.name,
+              phone: c.phone || c.mobile,
+              mobile: c.phone || c.mobile,
+              aadhar: c.aadhar || local?.aadhar || '—',
+              pan: c.pan || local?.pan || '—',
+              branch: c.branchId?.branchName || c.branch || 'Head Office',
+              agent: c.assignedAgentId?.name || c.agent || 'System Admin',
+              pending: c.pending ?? local?.pending ?? 0,
+              activeChits: chits.length,
+              chits: chits,
+              status: c.status || 'ACTIVE'
+            };
+          });
           setAllCustomers(mapped);
           setFilteredCustomers(mapped);
           setHasSearched(true);

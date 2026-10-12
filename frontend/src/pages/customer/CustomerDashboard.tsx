@@ -18,15 +18,19 @@ export const CustomerDashboard = () => {
   useEffect(() => {
     const loadCustomerData = async () => {
       if (user?.id) {
+        let chitsFromApi: any[] | null = null;
+        let totalInvestedFromApi: number | null = null;
         try {
           const res = await fetchClient(`/customers?search=${user.id}`);
           if (res && res.data && Array.isArray(res.data) && res.data.length > 0) {
-            const found = res.data.find((c: any) => c.customerCode === user.id || c._id === user.id) || res.data[0];
-            if (found) {
-              setMyChits(found.chits || []);
-              setActiveChits((found.chits || []).length);
-              setTotalInvested(found.totalPaid || 0);
-              return;
+            const found = res.data.find((c: any) => 
+              c.customerCode === user.id || 
+              c._id === user.id || 
+              (user.phone && (c.phone === user.phone || c.mobile === user.phone))
+            ) || res.data[0];
+            if (found && Array.isArray(found.chits) && found.chits.length > 0) {
+              chitsFromApi = found.chits;
+              totalInvestedFromApi = found.totalPaid;
             }
           }
         } catch (e) {
@@ -34,17 +38,17 @@ export const CustomerDashboard = () => {
         }
 
         const customers = JSON.parse(localStorage.getItem('mockCustomers') || '[]');
-        const customer = customers.find((c: any) => c.id === user.id);
+        const customer = customers.find((c: any) => 
+          c.id === user.id || 
+          c.mongoId === user.id || 
+          c.customerCode === user.id ||
+          (user.phone && (c.mobile === user.phone || c.phone === user.phone))
+        );
         
-        if (customer && customer.chits) {
-          setMyChits(customer.chits);
-          setActiveChits(customer.chits.length);
-          setTotalInvested(customer.totalPaid || 0);
-        } else {
-          setMyChits([]);
-          setActiveChits(0);
-          setTotalInvested(0);
-        }
+        const finalChits = (chitsFromApi && chitsFromApi.length > 0) ? chitsFromApi : (customer?.chits || []);
+        setMyChits(finalChits);
+        setActiveChits(finalChits.length);
+        setTotalInvested(totalInvestedFromApi ?? customer?.totalPaid ?? 0);
       }
     };
 

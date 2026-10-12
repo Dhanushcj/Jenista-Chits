@@ -22,6 +22,9 @@ export interface ICustomer extends Document {
     address: string;
   };
   status: 'ACTIVE' | 'INACTIVE' | 'PENDING_APPROVAL' | 'REJECTED';
+  chits?: any[];
+  pending?: number;
+  totalPaid?: number;
   createdBy?: mongoose.Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
@@ -58,6 +61,9 @@ const CustomerSchema: Schema = new Schema(
       enum: ['ACTIVE', 'INACTIVE', 'PENDING_APPROVAL', 'REJECTED'], 
       default: 'PENDING_APPROVAL' 
     },
+    chits: { type: Array, default: [] },
+    pending: { type: Number, default: 0 },
+    totalPaid: { type: Number, default: 0 },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
   },
   { timestamps: true }

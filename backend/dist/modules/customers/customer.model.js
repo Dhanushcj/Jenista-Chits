@@ -65,6 +65,9 @@ const CustomerSchema = new mongoose_1.Schema({
         enum: ['ACTIVE', 'INACTIVE', 'PENDING_APPROVAL', 'REJECTED'],
         default: 'PENDING_APPROVAL'
     },
+    chits: { type: Array, default: [] },
+    pending: { type: Number, default: 0 },
+    totalPaid: { type: Number, default: 0 },
     createdBy: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User' },
 }, { timestamps: true });
 CustomerSchema.index({ phone: 1 });

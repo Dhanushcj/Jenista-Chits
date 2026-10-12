@@ -54,19 +54,28 @@ export const AdminDashboard = () => {
     fetchClient('/customers')
       .then((res: any) => {
         if (res && res.data && Array.isArray(res.data)) {
-          const mapped = res.data.map((item: any) => ({
-            id: item.customerCode || item._id,
-            mongoId: item._id,
-            name: item.fullName || item.name,
-            mobile: item.phone || item.mobile,
-            phone: item.phone || item.mobile,
-            address: item.address,
-            branch: item.branchId?.branchName || 'Head Office',
-            status: item.status || 'ACTIVE',
-            totalPaid: item.totalPaid || 0,
-            pending: item.pending || 0,
-            chits: item.chits || [],
-          }));
+          const localSaved = JSON.parse(localStorage.getItem('mockCustomers') || '[]');
+          const mapped = res.data.map((item: any) => {
+            const local = localSaved.find((lc: any) => 
+              lc.id === (item.customerCode || item._id) || 
+              lc.mongoId === item._id || 
+              (lc.mobile && (lc.mobile === item.phone || lc.mobile === item.mobile))
+            );
+            const chits = (item.chits && item.chits.length > 0) ? item.chits : (local?.chits || []);
+            return {
+              id: item.customerCode || item._id,
+              mongoId: item._id,
+              name: item.fullName || item.name,
+              mobile: item.phone || item.mobile,
+              phone: item.phone || item.mobile,
+              address: item.address,
+              branch: item.branchId?.branchName || 'Head Office',
+              status: item.status || 'ACTIVE',
+              totalPaid: item.totalPaid ?? local?.totalPaid ?? 0,
+              pending: item.pending ?? local?.pending ?? 0,
+              chits: chits,
+            };
+          });
           setCustomers(mapped);
           localStorage.setItem('mockCustomers', JSON.stringify(mapped));
         }
@@ -155,12 +164,28 @@ export const AdminDashboard = () => {
       ...foundCustomer, 
       pending: (Number(foundCustomer.pending) || 0) + installment,
       totalPending: (Number(foundCustomer.totalPending) || 0) + installment,
-      chits: [...(foundCustomer.chits || []), newChit] 
+      chits: [...(foundCustomer.chits || []), newChit],
+      activeChits: ((foundCustomer.chits || []).length + 1)
     };
-    const updatedCustomers = customers.map(c => c.id === foundCustomer.id ? updatedCustomer : c);
-    
+
+    // Update localStorage mockCustomers reliably
+    const localSaved = JSON.parse(localStorage.getItem('mockCustomers') || '[]');
+    const updatedLocal = localSaved.map((c: any) => 
+      (c.id === foundCustomer.id || c.mongoId === foundCustomer.id || (foundCustomer.mongoId && c.mongoId === foundCustomer.mongoId))
+        ? updatedCustomer
+        : c
+    );
+    if (!updatedLocal.some((c: any) => c.id === foundCustomer.id || c.mongoId === foundCustomer.id)) {
+      updatedLocal.push(updatedCustomer);
+    }
+    localStorage.setItem('mockCustomers', JSON.stringify(updatedLocal));
+
+    const updatedCustomers = customers.map(c => 
+      (c.id === foundCustomer.id || c.mongoId === foundCustomer.id || (foundCustomer.mongoId && c.mongoId === foundCustomer.mongoId))
+        ? updatedCustomer
+        : c
+    );
     setCustomers(updatedCustomers);
-    localStorage.setItem('mockCustomers', JSON.stringify(updatedCustomers));
 
     const updatedGroup = { ...selectedGroup, filled: (selectedGroup.filled || 0) + 1 };
     setSelectedGroup(updatedGroup);
@@ -168,6 +193,21 @@ export const AdminDashboard = () => {
     const updatedGroups = chitGroups.map(g => g.id === selectedGroup.id ? updatedGroup : g);
     setChitGroups(updatedGroups);
     localStorage.setItem('mockChitGroups', JSON.stringify(updatedGroups));
+
+    // Dispatch storage event so customer dashboard / other tabs update immediately
+    window.dispatchEvent(new Event('storage'));
+
+    // Persist to backend MongoDB
+    const targetId = foundCustomer.mongoId || foundCustomer.id;
+    if (targetId) {
+      fetchClient(`/customers/${targetId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          chits: updatedCustomer.chits,
+          pending: updatedCustomer.pending,
+        })
+      }).catch(err => console.warn('Could not sync chit to backend:', err));
+    }
 
     setIsAddCustomerModalOpen(false);
     setSearchMobile('');
@@ -178,7 +218,12 @@ export const AdminDashboard = () => {
   // If a group is selected, show its customers
   if (selectedGroup) {
     const groupCustomers = customers.filter(c => 
-      c.chits?.some((ch: any) => (ch.groupId === selectedGroup.id || ch.groupId === selectedGroup.code))
+      c.chits?.some((ch: any) => 
+        ch.groupId === selectedGroup.id || 
+        ch.groupId === selectedGroup.code || 
+        (selectedGroup.name && ch.groupName === selectedGroup.name) ||
+        (selectedGroup.name && ch.groupId === selectedGroup.name)
+      )
     );
 
     return (

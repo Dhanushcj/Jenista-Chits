@@ -111,6 +111,9 @@ export class CustomerController {
       if (fullName || name) customer.fullName = fullName || name;
       if (phone || mobile) customer.phone = phone || mobile;
       if (address) customer.address = address;
+      if (req.body.chits) customer.chits = req.body.chits;
+      if (req.body.pending !== undefined) customer.pending = req.body.pending;
+      if (req.body.totalPaid !== undefined) customer.totalPaid = req.body.totalPaid;
 
       await customer.save();
 

@@ -42,13 +42,25 @@ export const Payments = () => {
     fetchClient('/customers')
       .then((res: any) => {
         if (res && res.data && Array.isArray(res.data)) {
-          const mapped = res.data.map((item: any) => ({
-            id: item.customerCode || item._id,
-            mongoId: item._id,
-            name: item.fullName || item.name,
-            mobile: item.phone || item.mobile,
-            chits: item.chits || [],
-          }));
+          const localSaved = JSON.parse(localStorage.getItem('mockCustomers') || '[]');
+          const mapped = res.data.map((item: any) => {
+            const local = localSaved.find((lc: any) => 
+              lc.id === (item.customerCode || item._id) || 
+              lc.mongoId === item._id || 
+              (lc.mobile && (lc.mobile === item.phone || lc.mobile === item.mobile))
+            );
+            const chits = (item.chits && item.chits.length > 0) ? item.chits : (local?.chits || []);
+            return {
+              id: item.customerCode || item._id,
+              mongoId: item._id,
+              name: item.fullName || item.name,
+              mobile: item.phone || item.mobile,
+              phone: item.phone || item.mobile,
+              pending: item.pending ?? local?.pending ?? 0,
+              totalPaid: item.totalPaid ?? local?.totalPaid ?? 0,
+              chits: chits,
+            };
+          });
           setCustomersDB(mapped);
           localStorage.setItem('mockCustomers', JSON.stringify(mapped));
         }

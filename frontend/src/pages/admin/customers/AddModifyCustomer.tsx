@@ -148,19 +148,32 @@ export const AddModifyCustomer = () => {
       try {
         const res = await fetchClient('/customers');
         if (res && res.data && Array.isArray(res.data)) {
-          const mapped = res.data.map((c: any) => ({
-            id: c.customerCode || c._id,
-            mongoId: c._id,
-            name: c.fullName || c.name,
-            mobile: c.phone || c.mobile,
-            address: c.address,
-            dob: c.dateOfBirth || '',
-            gender: c.gender || '',
-            email: c.email || '',
-            aadhar: c.aadhar || '',
-            pan: c.pan || '',
-            status: c.status || 'ACTIVE'
-          }));
+          const localSaved = JSON.parse(localStorage.getItem('mockCustomers') || '[]');
+          const mapped = res.data.map((c: any) => {
+            const local = localSaved.find((lc: any) => 
+              lc.id === (c.customerCode || c._id) || 
+              lc.mongoId === c._id || 
+              (lc.mobile && (lc.mobile === c.phone || lc.mobile === c.mobile))
+            );
+            const chits = (c.chits && c.chits.length > 0) ? c.chits : (local?.chits || []);
+            return {
+              id: c.customerCode || c._id,
+              mongoId: c._id,
+              name: c.fullName || c.name,
+              mobile: c.phone || c.mobile,
+              phone: c.phone || c.mobile,
+              address: c.address,
+              dob: c.dateOfBirth || local?.dob || '',
+              gender: c.gender || local?.gender || '',
+              email: c.email || local?.email || '',
+              aadhar: c.aadhar || local?.aadhar || '',
+              pan: c.pan || local?.pan || '',
+              pending: c.pending ?? local?.pending ?? 0,
+              totalPaid: c.totalPaid ?? local?.totalPaid ?? 0,
+              chits: chits,
+              status: c.status || 'ACTIVE'
+            };
+          });
           setMockCustomers(mapped);
           localStorage.setItem('mockCustomers', JSON.stringify(mapped));
         }
