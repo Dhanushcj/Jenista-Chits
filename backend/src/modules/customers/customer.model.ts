@@ -6,6 +6,7 @@ export interface ICustomer extends Document {
   phone: string;
   alternatePhone?: string;
   email?: string;
+  passwordHash?: string;
   dateOfBirth?: Date;
   gender?: 'MALE' | 'FEMALE' | 'OTHER';
   photo?: string;
@@ -20,7 +21,7 @@ export interface ICustomer extends Document {
     phone: string;
     address: string;
   };
-  status: 'ACTIVE' | 'INACTIVE';
+  status: 'ACTIVE' | 'INACTIVE' | 'PENDING_APPROVAL' | 'REJECTED';
   createdBy?: mongoose.Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
@@ -52,7 +53,11 @@ const CustomerSchema: Schema = new Schema(
       phone: { type: String },
       address: { type: String },
     },
-    status: { type: String, enum: ['ACTIVE', 'INACTIVE'], default: 'ACTIVE' },
+    status: { 
+      type: String, 
+      enum: ['ACTIVE', 'INACTIVE', 'PENDING_APPROVAL', 'REJECTED'], 
+      default: 'PENDING_APPROVAL' 
+    },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
   },
   { timestamps: true }

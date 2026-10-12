@@ -1,15 +1,18 @@
 import { Router } from 'express';
 import { CustomerController } from './customer.controller';
-import { authenticate } from '../../middleware/authenticate';
-import { authorize } from '../../middleware/authorize';
 
 const router = Router();
 
 // Public route for customer registration
 router.post('/', CustomerController.createCustomer);
 
-// Protected routes
-router.use(authenticate);
-router.get('/', authorize(['customers.read']), CustomerController.getCustomers);
+// Public route for customer login
+router.post('/login', CustomerController.customerLogin);
+
+// Customer list (allows filtering by status, search, etc.)
+router.get('/', CustomerController.getCustomers);
+
+// Update customer status (e.g. approve / reject)
+router.patch('/:id/status', CustomerController.updateCustomerStatus);
 
 export default router;

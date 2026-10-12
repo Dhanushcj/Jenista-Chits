@@ -60,7 +60,11 @@ const CustomerSchema = new mongoose_1.Schema({
         phone: { type: String },
         address: { type: String },
     },
-    status: { type: String, enum: ['ACTIVE', 'INACTIVE'], default: 'ACTIVE' },
+    status: {
+        type: String,
+        enum: ['ACTIVE', 'INACTIVE', 'PENDING_APPROVAL', 'REJECTED'],
+        default: 'PENDING_APPROVAL'
+    },
     createdBy: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User' },
 }, { timestamps: true });
 CustomerSchema.index({ phone: 1 });

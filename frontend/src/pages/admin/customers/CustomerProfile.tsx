@@ -8,6 +8,7 @@ import {
   Calendar, Mail, CreditCard, Activity, ArrowUpRight, ArrowDownRight, Clock, Layers, X, Users, BookOpen, Download
 } from 'lucide-react';
 import { cn } from '../../../utils/cn';
+import { fetchClient } from '../../../api/client';
 
 export const CustomerProfile = () => {
   const { id } = useParams();
@@ -21,18 +22,52 @@ export const CustomerProfile = () => {
   const [paymentMode, setPaymentMode] = useState('Cash');
 
   useEffect(() => {
-    const saved = localStorage.getItem('mockCustomers');
-    if (saved && id) {
-      const parsed = JSON.parse(saved);
-      const found = parsed.find((c: any) => c.id === id);
-      if (found) {
-        setCustomer(found);
-        
-        // Calculate referrals
-        const referrals = parsed.filter((c: any) => c.referredBy === found.id);
-        setReferralCount(referrals.length);
+    const loadCustomer = async () => {
+      if (!id) return;
+
+      // 1. Try fetching from MongoDB
+      try {
+        const res = await fetchClient(`/customers?search=${id}`);
+        if (res && res.data && Array.isArray(res.data) && res.data.length > 0) {
+          const found = res.data.find((c: any) => c.customerCode === id || c._id === id) || res.data[0];
+          if (found) {
+            setCustomer({
+              id: found.customerCode || found._id,
+              mongoId: found._id,
+              name: found.fullName || found.name,
+              mobile: found.phone || found.mobile,
+              address: found.address,
+              aadhar: found.aadhar || '—',
+              pan: found.pan || '—',
+              branch: found.branchId?.branchName || 'Head Office',
+              agent: found.assignedAgentId?.name || 'System Admin',
+              totalPaid: found.totalPaid || 0,
+              pending: found.pending || 0,
+              activeChits: found.chits?.length || 0,
+              chits: found.chits || [],
+              status: found.status || 'ACTIVE'
+            });
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn('Could not fetch customer profile from API:', err);
       }
-    }
+
+      // 2. Fallback to localStorage
+      const saved = localStorage.getItem('mockCustomers');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        const found = parsed.find((c: any) => c.id === id || c.mongoId === id);
+        if (found) {
+          setCustomer(found);
+          const referrals = parsed.filter((c: any) => c.referredBy === found.id);
+          setReferralCount(referrals.length);
+        }
+      }
+    };
+
+    loadCustomer();
   }, [id]);
 
   const handleWithdraw = (chitId: string, ticketNumber: string) => {

@@ -1,35 +1,84 @@
 import { useState, useEffect } from 'react';
 import { CheckCircle2, XCircle, Search, UserCheck } from 'lucide-react';
-
+import { fetchClient } from '../../../api/client';
 
 export const AddModifyCustomerChit = () => {
   const [pendingCustomers, setPendingCustomers] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     loadPendingCustomers();
   }, []);
 
-  const loadPendingCustomers = () => {
+  const loadPendingCustomers = async () => {
+    setIsLoading(true);
+    try {
+      // Fetch directly from MongoDB backend
+      const res = await fetchClient('/customers?status=PENDING_APPROVAL');
+      if (res && res.data && Array.isArray(res.data)) {
+        const mongoCustomers = res.data.map((c: any) => ({
+          id: c.customerCode || c._id,
+          mongoId: c._id,
+          name: c.fullName || c.name,
+          mobile: c.phone || c.mobile,
+          address: c.address,
+          status: c.status,
+          referredBy: c.referredBy || null,
+        }));
+        setPendingCustomers(mongoCustomers);
+        
+        // Also sync local storage mockCustomers for any offline usage
+        const saved = JSON.parse(localStorage.getItem('mockCustomers') || '[]');
+        const updatedStorage = [...saved.filter((s: any) => s.status !== 'PENDING_APPROVAL'), ...mongoCustomers];
+        localStorage.setItem('mockCustomers', JSON.stringify(updatedStorage));
+        return;
+      }
+    } catch (e) {
+      console.warn('API error fetching pending customers, reading fallback:', e);
+    } finally {
+      setIsLoading(false);
+    }
+
+    // Fallback to localStorage
     const customers = JSON.parse(localStorage.getItem('mockCustomers') || '[]');
     setPendingCustomers(customers.filter((c: any) => c.status === 'PENDING_APPROVAL'));
   };
 
-  const handleApprove = (id: string) => {
+  const handleApprove = async (id: string, mongoId?: string) => {
     if (window.confirm('Are you sure you want to approve this customer registration?')) {
+      try {
+        await fetchClient(`/customers/${mongoId || id}/status`, {
+          method: 'PATCH',
+          body: JSON.stringify({ status: 'ACTIVE' }),
+        });
+      } catch (e) {
+        console.warn('Failed to update status on server:', e);
+      }
+
+      // Update in local cache
       const customers = JSON.parse(localStorage.getItem('mockCustomers') || '[]');
-      const updated = customers.map((c: any) => c.id === id ? { ...c, status: 'Active' } : c);
+      const updated = customers.map((c: any) => (c.id === id || c.mongoId === mongoId) ? { ...c, status: 'ACTIVE' } : c);
       localStorage.setItem('mockCustomers', JSON.stringify(updated));
-      loadPendingCustomers();
+      await loadPendingCustomers();
     }
   };
 
-  const handleReject = (id: string) => {
+  const handleReject = async (id: string, mongoId?: string) => {
     if (window.confirm('Are you sure you want to reject this registration? The customer will not be able to log in.')) {
+      try {
+        await fetchClient(`/customers/${mongoId || id}/status`, {
+          method: 'PATCH',
+          body: JSON.stringify({ status: 'REJECTED' }),
+        });
+      } catch (e) {
+        console.warn('Failed to update status on server:', e);
+      }
+
       const customers = JSON.parse(localStorage.getItem('mockCustomers') || '[]');
-      const updated = customers.map((c: any) => c.id === id ? { ...c, status: 'REJECTED' } : c);
+      const updated = customers.map((c: any) => (c.id === id || c.mongoId === mongoId) ? { ...c, status: 'REJECTED' } : c);
       localStorage.setItem('mockCustomers', JSON.stringify(updated));
-      loadPendingCustomers();
+      await loadPendingCustomers();
     }
   };
 
@@ -97,13 +146,13 @@ export const AddModifyCustomerChit = () => {
                     </td>
                     <td className="px-6 py-4 text-right space-x-3">
                       <button 
-                        onClick={() => handleReject(customer.id)}
+                        onClick={() => handleReject(customer.id, customer.mongoId)}
                         className="inline-flex items-center text-sm font-medium text-danger hover:text-danger-dark transition-colors px-3 py-1.5 rounded-md hover:bg-danger-light/50"
                       >
                         <XCircle className="w-4 h-4 mr-1.5" /> Reject
                       </button>
                       <button 
-                        onClick={() => handleApprove(customer.id)}
+                        onClick={() => handleApprove(customer.id, customer.mongoId)}
                         className="inline-flex items-center text-sm font-medium text-success hover:text-success-dark transition-colors px-3 py-1.5 rounded-md bg-success-light/50 hover:bg-success-light"
                       >
                         <CheckCircle2 className="w-4 h-4 mr-1.5" /> Approve

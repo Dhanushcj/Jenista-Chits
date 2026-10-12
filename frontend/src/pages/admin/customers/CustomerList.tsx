@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ActionLayout } from '../../../components/layout/ActionLayout';
 import type { ActionType } from '../../../components/layout/ActionLayout';
 import { Search, Eye, Trash2 } from 'lucide-react';
 import { Button } from '../../../components/common/Button';
 import { formatCurrency } from '../../../utils/format';
 import { Link } from 'react-router-dom';
+import { fetchClient } from '../../../api/client';
 
 export const CustomerList = () => {
   const [searchName, setSearchName] = useState('');
@@ -14,28 +15,43 @@ export const CustomerList = () => {
   const [hasSearched, setHasSearched] = useState(false);
   const [filteredCustomers, setFilteredCustomers] = useState<any[]>([]);
 
-  // Customer data loaded from localStorage
-  const [allCustomers, setAllCustomers] = useState(() => {
+  // Customer data loaded from MongoDB API + localStorage
+  const [allCustomers, setAllCustomers] = useState<any[]>(() => {
     const saved = localStorage.getItem('mockCustomers');
     if (saved) {
       const parsed = JSON.parse(saved);
-      // Filter out legacy hardcoded mock customers
-      const filtered = parsed.filter((p: any) => !['TC-10045', 'TC-10046', 'TC-10047', 'TC-10048'].includes(p.id) && p.name !== 'Rahul Sharma');
-      if (filtered.length !== parsed.length) {
-        localStorage.setItem('mockCustomers', JSON.stringify(filtered));
-      }
-      return filtered.map((p: any) => ({
-        ...p,
-        phone: p.phone || p.mobile, 
-        branch: p.branch || 'Head Office',
-        agent: p.agent || 'System Admin',
-        pending: p.pending || 0,
-        activeChits: p.activeChits || 0,
-        status: p.status || 'ACTIVE'
-      }));
+      return parsed.filter((p: any) => !['TC-10045', 'TC-10046', 'TC-10047', 'TC-10048'].includes(p.id) && p.name !== 'Rahul Sharma');
     }
     return [];
   });
+
+  useEffect(() => {
+    const loadMongoCustomers = async () => {
+      try {
+        const res = await fetchClient('/customers');
+        if (res && res.data && Array.isArray(res.data)) {
+          const mapped = res.data.map((c: any) => ({
+            id: c.customerCode || c._id,
+            mongoId: c._id,
+            name: c.fullName || c.name,
+            phone: c.phone || c.mobile,
+            aadhar: c.aadhar || '—',
+            pan: c.pan || '—',
+            branch: c.branchId?.branchName || c.branch || 'Head Office',
+            agent: c.assignedAgentId?.name || c.agent || 'System Admin',
+            pending: c.pending || 0,
+            activeChits: c.activeChits || 0,
+            status: c.status || 'ACTIVE'
+          }));
+          setAllCustomers(mapped);
+          localStorage.setItem('mockCustomers', JSON.stringify(mapped));
+        }
+      } catch (err) {
+        console.warn('Could not fetch customers from backend:', err);
+      }
+    };
+    loadMongoCustomers();
+  }, []);
 
   const handleDeleteCustomer = (id: string) => {
     if (window.confirm("Are you sure you want to delete this customer?")) {

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Search, Printer, CheckCircle2, RotateCcw } from 'lucide-react';
+import { fetchClient } from '../../../api/client';
 
 interface ReceiptData {
   receiptNo: string;
@@ -50,6 +51,22 @@ export const ReceiptEntry = () => {
     // Auto-generate receipt number
     const nextNo = `REC-${Date.now().toString().slice(-6)}`;
     setForm(f => ({ ...f, receiptNo: nextNo }));
+
+    fetchClient('/customers')
+      .then((res: any) => {
+        if (res && res.data && Array.isArray(res.data)) {
+          const mapped = res.data.map((item: any) => ({
+            id: item.customerCode || item._id,
+            mongoId: item._id,
+            name: item.fullName || item.name,
+            mobile: item.phone || item.mobile,
+            chits: item.chits || [],
+          }));
+          setCustomersDB(mapped);
+          localStorage.setItem('mockCustomers', JSON.stringify(mapped));
+        }
+      })
+      .catch((err: any) => console.warn('Could not sync receipt entry customers:', err));
   }, []);
 
   const set = (key: keyof ReceiptData, val: string) =>

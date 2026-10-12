@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Layers, CreditCard, TrendingUp, Bell, History, Calendar, ArrowRight, Copy } from 'lucide-react';
 import { formatCurrency, formatDate } from '../../utils/format';
 import { useAuth } from '../../store/AuthContext';
+import { fetchClient } from '../../api/client';
 
 export const CustomerDashboard = () => {
   const { user, logout } = useAuth();
@@ -12,8 +13,23 @@ export const CustomerDashboard = () => {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    const loadCustomerData = () => {
+    const loadCustomerData = async () => {
       if (user?.id) {
+        try {
+          const res = await fetchClient(`/customers?search=${user.id}`);
+          if (res && res.data && Array.isArray(res.data) && res.data.length > 0) {
+            const found = res.data.find((c: any) => c.customerCode === user.id || c._id === user.id) || res.data[0];
+            if (found) {
+              setMyChits(found.chits || []);
+              setActiveChits((found.chits || []).length);
+              setTotalInvested(found.totalPaid || 0);
+              return;
+            }
+          }
+        } catch (e) {
+          console.warn('API error in CustomerDashboard:', e);
+        }
+
         const customers = JSON.parse(localStorage.getItem('mockCustomers') || '[]');
         const customer = customers.find((c: any) => c.id === user.id);
         
@@ -30,12 +46,12 @@ export const CustomerDashboard = () => {
     };
 
     loadCustomerData();
-    const interval = setInterval(loadCustomerData, 2000);
+    const interval = setInterval(loadCustomerData, 5000);
     window.addEventListener('storage', loadCustomerData);
 
-        const ledger = JSON.parse(localStorage.getItem('ledgerTransactions') || '[]');
-        const myTransactions = ledger.filter((t: any) => t.reference && user?.id && t.reference.includes(user.id));
-        setTransactions(myTransactions);
+    const ledger = JSON.parse(localStorage.getItem('ledgerTransactions') || '[]');
+    const myTransactions = ledger.filter((t: any) => t.reference && user?.id && t.reference.includes(user.id));
+    setTransactions(myTransactions);
 
     return () => {
       clearInterval(interval);

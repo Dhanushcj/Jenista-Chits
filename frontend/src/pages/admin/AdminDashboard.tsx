@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Layers, TrendingUp, ArrowLeft, Plus, X, CheckCircle2, Users, IndianRupee, PieChart as PieChartIcon } from 'lucide-react';
 import { formatCurrency } from '../../utils/format';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
+import { fetchClient } from '../../api/client';
 
 export const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -48,6 +49,29 @@ export const AdminDashboard = () => {
     
     const c = localStorage.getItem('mockCustomers');
     if (c) setCustomers(JSON.parse(c));
+
+    // Fetch live customers from MongoDB
+    fetchClient('/customers')
+      .then((res: any) => {
+        if (res && res.data && Array.isArray(res.data)) {
+          const mapped = res.data.map((item: any) => ({
+            id: item.customerCode || item._id,
+            mongoId: item._id,
+            name: item.fullName || item.name,
+            mobile: item.phone || item.mobile,
+            phone: item.phone || item.mobile,
+            address: item.address,
+            branch: item.branchId?.branchName || 'Head Office',
+            status: item.status || 'ACTIVE',
+            totalPaid: item.totalPaid || 0,
+            pending: item.pending || 0,
+            chits: item.chits || [],
+          }));
+          setCustomers(mapped);
+          localStorage.setItem('mockCustomers', JSON.stringify(mapped));
+        }
+      })
+      .catch((err: any) => console.warn('Could not sync admin dashboard customers:', err));
   }, []);
 
   const handleCategoryClick = (type: string, value: number) => {

@@ -4,6 +4,7 @@ import type { ActionType } from '../../../components/layout/ActionLayout';
 import { Search, User, Camera, Phone, FileText, Upload } from 'lucide-react';
 import { Input } from '../../../components/common/Input';
 import { Button } from '../../../components/common/Button';
+import { fetchClient } from '../../../api/client';
 
 interface UploadMethodDialogProps {
   isOpen: boolean;
@@ -141,6 +142,34 @@ export const AddModifyCustomer = () => {
     return [];
   });
   const [activeCustomer, setActiveCustomer] = useState<any>(null);
+
+  useEffect(() => {
+    const syncWithMongo = async () => {
+      try {
+        const res = await fetchClient('/customers');
+        if (res && res.data && Array.isArray(res.data)) {
+          const mapped = res.data.map((c: any) => ({
+            id: c.customerCode || c._id,
+            mongoId: c._id,
+            name: c.fullName || c.name,
+            mobile: c.phone || c.mobile,
+            address: c.address,
+            dob: c.dateOfBirth || '',
+            gender: c.gender || '',
+            email: c.email || '',
+            aadhar: c.aadhar || '',
+            pan: c.pan || '',
+            status: c.status || 'ACTIVE'
+          }));
+          setMockCustomers(mapped);
+          localStorage.setItem('mockCustomers', JSON.stringify(mapped));
+        }
+      } catch (e) {
+        console.warn('Could not sync customers with MongoDB in AddModifyCustomer:', e);
+      }
+    };
+    syncWithMongo();
+  }, []);
 
   const handleActionSelect = (action: ActionType) => {
     setActiveAction(action);

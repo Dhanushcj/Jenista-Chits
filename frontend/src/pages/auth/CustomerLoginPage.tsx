@@ -4,6 +4,7 @@ import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
 import { Lock, User } from 'lucide-react';
 import { useAuth } from '../../store/AuthContext';
+import { fetchClient } from '../../api/client';
 
 export const CustomerLoginPage = () => {
   const [identifier, setIdentifier] = useState('');
@@ -19,38 +20,61 @@ export const CustomerLoginPage = () => {
     setError('');
 
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
       if (identifier === 'customer' && password === 'customer') {
         login('mock-jwt-token-customer', {
           id: '2',
-          name: 'Jane Doe',
+          name: 'Customer Demo',
+          role: 'CUSTOMER',
+          permissions: ['customer.read']
+        });
+        navigate('/customer/dashboard');
+        return;
+      }
+
+      // 1. Try real login via backend API (MongoDB)
+      try {
+        const res = await fetchClient('/customers/login', {
+          method: 'POST',
+          body: JSON.stringify({ identifier, password }),
+        });
+
+        if (res && res.data) {
+          login(res.data.token, res.data.user);
+          navigate('/customer/dashboard');
+          return;
+        }
+      } catch (apiErr: any) {
+        // If API returned a specific business status error, throw it directly
+        if (apiErr.message?.includes('pending admin approval') || apiErr.message?.includes('rejected')) {
+          throw apiErr;
+        }
+        console.warn('API customer login error, falling back to local storage:', apiErr);
+      }
+
+      // 2. Fallback to localStorage
+      const customers = JSON.parse(localStorage.getItem('mockCustomers') || '[]');
+      const customer = customers.find((c: any) => 
+        (c.mobile === identifier || c.phone === identifier || c.id === identifier) && 
+        (!c.password || c.password === password)
+      );
+      
+      if (customer) {
+        if (customer.status === 'PENDING_APPROVAL') {
+          throw new Error('Your account is pending admin approval.');
+        }
+        if (customer.status === 'REJECTED') {
+          throw new Error('Your account registration was rejected.');
+        }
+        
+        login(`token-${customer.id}`, {
+          id: customer.id,
+          name: customer.name || customer.fullName,
           role: 'CUSTOMER',
           permissions: ['customer.read']
         });
         navigate('/customer/dashboard');
       } else {
-        const customers = JSON.parse(localStorage.getItem('mockCustomers') || '[]');
-        const customer = customers.find((c: any) => c.mobile === identifier && c.password === password);
-        
-        if (customer) {
-          if (customer.status === 'PENDING_APPROVAL') {
-            throw new Error('Your account is pending admin approval.');
-          }
-          if (customer.status === 'REJECTED') {
-            throw new Error('Your account registration was rejected.');
-          }
-          
-          login(`mock-jwt-token-${customer.id}`, {
-            id: customer.id,
-            name: customer.name,
-            role: 'CUSTOMER',
-            permissions: ['customer.read']
-          });
-          navigate('/customer/dashboard');
-        } else {
-          throw new Error('Invalid customer credentials');
-        }
+        throw new Error('Invalid customer credentials');
       }
     } catch (err: any) {
       setError(err.message || 'Login failed');

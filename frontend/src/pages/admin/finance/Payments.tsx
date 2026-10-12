@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Search, Printer, RotateCcw, CheckCircle2, Receipt, ChevronRight } from 'lucide-react';
+import { fetchClient } from '../../../api/client';
 
 type ActionType = 'ADD' | 'MODIFY' | 'APPROVE' | null;
 
@@ -37,6 +38,22 @@ export const Payments = () => {
     const g = localStorage.getItem('mockChitGroups');
     if (g) setChitGroups(JSON.parse(g));
     setForm(f => ({ ...f, receiptNo: `REC-${Date.now().toString().slice(-6)}` }));
+
+    fetchClient('/customers')
+      .then((res: any) => {
+        if (res && res.data && Array.isArray(res.data)) {
+          const mapped = res.data.map((item: any) => ({
+            id: item.customerCode || item._id,
+            mongoId: item._id,
+            name: item.fullName || item.name,
+            mobile: item.phone || item.mobile,
+            chits: item.chits || [],
+          }));
+          setCustomersDB(mapped);
+          localStorage.setItem('mockCustomers', JSON.stringify(mapped));
+        }
+      })
+      .catch((err: any) => console.warn('Could not sync payments customers:', err));
   }, []);
 
   const set = (k: keyof typeof EMPTY_FORM, v: string) => setForm(f => ({ ...f, [k]: v }));
