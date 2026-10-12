@@ -114,6 +114,9 @@ export class CustomerController {
       if (req.body.chits) customer.chits = req.body.chits;
       if (req.body.pending !== undefined) customer.pending = req.body.pending;
       if (req.body.totalPaid !== undefined) customer.totalPaid = req.body.totalPaid;
+      if (req.body.password) {
+        customer.passwordHash = await bcrypt.hash(req.body.password, 10);
+      }
 
       await customer.save();
 

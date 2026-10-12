@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { ActionLayout } from '../../../components/layout/ActionLayout';
 import type { ActionType } from '../../../components/layout/ActionLayout';
-import { Search, User, Camera, Phone, FileText, Upload } from 'lucide-react';
+import { Search, User, Camera, Phone, FileText, Upload, Lock, Eye, EyeOff, ShieldCheck } from 'lucide-react';
 import { Input } from '../../../components/common/Input';
 import { Button } from '../../../components/common/Button';
 import { fetchClient } from '../../../api/client';
@@ -129,7 +129,7 @@ const UploadMethodDialog = ({ isOpen, onClose, title, onUpload, accept }: Upload
 };
 
 export const AddModifyCustomer = () => {
-  const [activeAction, setActiveAction] = useState<ActionType>(null);
+  const [activeAction, setActiveAction] = useState<ActionType>('ADD');
   const [hasSearched, setHasSearched] = useState(false);
   const [searchId, setSearchId] = useState('');
   
@@ -199,6 +199,7 @@ export const AddModifyCustomer = () => {
 
   const CustomerForm = ({ disabled = false, customer = null }: { disabled?: boolean, customer?: any }) => {
     const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+    const [showPassword, setShowPassword] = useState(false);
     const [uploadDialog, setUploadDialog] = useState<{type: 'photo' | 'aadhar' | 'pan', title: string, accept: string} | null>(null);
 
     const handlePhotoChange = (file: File) => {
@@ -300,6 +301,61 @@ export const AddModifyCustomer = () => {
             <div className="md:col-span-2">
               <label className="block text-sm font-semibold text-neutral-700 mb-1">Residential Address *</label>
               <Input name="address" defaultValue={customer?.address || ""} placeholder="Enter full residential address" disabled={disabled} />
+            </div>
+          </div>
+        </section>
+
+        {/* Customer Login Credentials */}
+        <section>
+          <div className="flex items-center space-x-2 border-b border-neutral-100 pb-3 mb-6">
+            <Lock className="w-5 h-5 text-primary-900" />
+            <h4 className="text-lg font-bold text-neutral-800">Customer Login Credentials</h4>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-gradient-to-r from-primary-50/60 to-neutral-50 p-6 rounded-xl border border-primary-200/80 shadow-sm">
+            <div>
+              <label className="block text-sm font-semibold text-neutral-700 mb-1">
+                Customer ID / Username
+              </label>
+              <Input 
+                name="customerCode" 
+                defaultValue={customer?.id || customer?.customerCode || ""} 
+                placeholder="Auto-generated on save (e.g. TC-73071)" 
+                disabled={disabled}
+                readOnly={!customer}
+                className="bg-white font-mono"
+              />
+              <p className="text-xs text-neutral-500 mt-1.5 flex items-center gap-1">
+                <ShieldCheck className="w-3.5 h-3.5 text-success inline shrink-0" />
+                Customer can log in using either this ID or their 10-digit mobile number.
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-neutral-700 mb-1">
+                {customer ? 'Reset Password (optional)' : 'Login Password *'}
+              </label>
+              <div className="relative">
+                <input 
+                  name="password"
+                  type={showPassword ? "text" : "password"}
+                  disabled={disabled}
+                  defaultValue=""
+                  placeholder={customer ? "Leave blank to keep existing password" : "Create password for customer login"}
+                  className="w-full h-[42px] px-3 pr-10 py-2 bg-white border border-neutral-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-900 focus:border-transparent disabled:bg-neutral-50 disabled:text-neutral-400"
+                />
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 transition-colors p-1"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              <p className="text-xs text-neutral-500 mt-1.5">
+                {customer 
+                  ? "Enter a new password only if the customer requested a password reset." 
+                  : "Set a password so the customer can immediately sign into their mobile/web app."}
+              </p>
             </div>
           </div>
         </section>
@@ -489,9 +545,10 @@ export const AddModifyCustomer = () => {
       const form = document.getElementById('customer-form') as HTMLFormElement;
       if (form) {
         const formData = new FormData(form);
-        const nameVal = (formData.get('name') as string) || '';
-        const mobileVal = (formData.get('mobile') as string) || '';
-        const addressVal = (formData.get('address') as string) || '';
+        const nameVal = (formData.get('name') as string)?.trim() || '';
+        const mobileVal = (formData.get('mobile') as string)?.trim() || '';
+        const addressVal = (formData.get('address') as string)?.trim() || '';
+        const passwordVal = (formData.get('password') as string)?.trim() || '';
 
         if (!nameVal || !mobileVal) {
           alert('Please enter at least Customer Name and Mobile Number.');
@@ -504,32 +561,51 @@ export const AddModifyCustomer = () => {
           return;
         }
 
+        if (!passwordVal || passwordVal.length < 4) {
+          alert('Please provide a login password for the customer (minimum 4 characters).');
+          return;
+        }
+
         const isDuplicate = mockCustomers.some(c => (c.mobile && c.mobile.replace(/\D/g, '') === cleanMobile) || (c.phone && c.phone.replace(/\D/g, '') === cleanMobile));
         if (isDuplicate) {
           alert('Already registered sign in to continue');
           return;
         }
 
+        const customerCode = `TC-${Math.floor(10000 + Math.random() * 90000)}`;
+
         const newCustomer: any = {
-          id: `TC-${Math.floor(10000 + Math.random() * 90000)}`,
+          id: customerCode,
+          customerCode: customerCode,
           name: nameVal,
+          fullName: nameVal,
           mobile: cleanMobile,
+          phone: cleanMobile,
+          password: passwordVal,
           dob: formData.get('dob') as string,
           gender: formData.get('gender') as string,
           email: formData.get('email') as string,
           address: addressVal,
           aadhar: formData.get('aadhar') as string,
           pan: formData.get('pan') as string,
-          status: 'ACTIVE'
+          status: 'ACTIVE',
+          chits: [],
+          pending: 0,
+          totalPaid: 0,
+          activeChits: 0
         };
 
         try {
           const res = await fetchClient('/customers', {
             method: 'POST',
             body: JSON.stringify({
+              customerCode: customerCode,
               fullName: nameVal,
+              name: nameVal,
               phone: cleanMobile,
+              mobile: cleanMobile,
               address: addressVal,
+              password: passwordVal,
               email: newCustomer.email,
               gender: newCustomer.gender ? newCustomer.gender.toUpperCase() : undefined,
               aadhar: newCustomer.aadhar,
@@ -555,32 +631,58 @@ export const AddModifyCustomer = () => {
           localStorage.setItem('mockCustomers', JSON.stringify(updated));
           return updated;
         });
-        alert(`Success: New customer ${newCustomer.name} (${newCustomer.id}) has been successfully created in MongoDB!`);
+        window.dispatchEvent(new Event('storage'));
+        alert(`Success: Customer ${newCustomer.name} (${newCustomer.id}) has been successfully registered!\n\nCustomer Login Credentials:\nUser ID / Phone: ${newCustomer.id} or ${newCustomer.mobile}\nPassword: ${passwordVal}`);
       } else {
-        alert('Success: New customer has been successfully created!');
+        alert('Success: New customer has been successfully registered!');
       }
     } else if (activeAction === 'MODIFY') {
       const form = document.getElementById('customer-form') as HTMLFormElement;
       if (form && activeCustomer) {
         const formData = new FormData(form);
         const targetId = activeCustomer.mongoId || activeCustomer.id;
+        const newPassword = (formData.get('password') as string)?.trim();
+        const payload: any = {
+          fullName: formData.get('name') as string,
+          phone: formData.get('mobile') as string,
+          address: formData.get('address') as string,
+        };
+        if (newPassword) {
+          payload.password = newPassword;
+        }
+
         try {
-          await fetchClient(`/customers/${targetId}/status`, {
+          await fetchClient(`/customers/${targetId}`, {
             method: 'PATCH',
-            body: JSON.stringify({
-              fullName: formData.get('name') as string,
-              phone: formData.get('mobile') as string,
-              address: formData.get('address') as string,
-            })
+            body: JSON.stringify(payload)
           });
         } catch (err) {
           console.warn('Could not update customer in MongoDB:', err);
         }
+
+        const localSaved = JSON.parse(localStorage.getItem('mockCustomers') || '[]');
+        const updatedLocal = localSaved.map((c: any) => {
+          if (c.id === activeCustomer.id || c.mongoId === activeCustomer.mongoId) {
+            return {
+              ...c,
+              name: payload.fullName || c.name,
+              fullName: payload.fullName || c.name,
+              phone: payload.phone || c.phone,
+              mobile: payload.phone || c.mobile,
+              address: payload.address || c.address,
+              ...(newPassword ? { password: newPassword } : {})
+            };
+          }
+          return c;
+        });
+        localStorage.setItem('mockCustomers', JSON.stringify(updatedLocal));
+        setMockCustomers(updatedLocal);
+        window.dispatchEvent(new Event('storage'));
+        alert(newPassword ? 'Success: Customer details and login password have been updated!' : 'Success: Customer details have been successfully updated in MongoDB!');
       }
-      alert('Success: Customer details have been successfully updated in MongoDB!');
     }
     handleClear();
-    setActiveAction(null);
+    setActiveAction('ADD');
   };
 
   const handleConfirmApprove = async () => {
@@ -597,19 +699,21 @@ export const AddModifyCustomer = () => {
     }
     alert('Success: Customer details updated and approved in MongoDB!');
     handleClear();
-    setActiveAction(null);
+    setActiveAction('ADD');
   };
 
   return (
     <ActionLayout 
-      title="Add / Modify Customer"
+      title="Customer Registration"
+      defaultAction="ADD"
+      actionLabels={{ ADD: 'Register Customer', MODIFY: 'Modify Details' }}
       allowedActions={['ADD', 'MODIFY']}
       onActionSelect={handleActionSelect}
       renderContent={renderContent}
       onClear={handleClear}
       onCancel={() => {
         handleClear();
-        setActiveAction(null);
+        setActiveAction('ADD');
       }}
       onConfirm={activeAction ? handleConfirm : undefined}
       onConfirmApprove={activeAction === 'MODIFY' ? handleConfirmApprove : undefined}

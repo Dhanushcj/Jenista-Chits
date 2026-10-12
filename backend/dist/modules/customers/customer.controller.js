@@ -110,6 +110,9 @@ class CustomerController {
                 customer.pending = req.body.pending;
             if (req.body.totalPaid !== undefined)
                 customer.totalPaid = req.body.totalPaid;
+            if (req.body.password) {
+                customer.passwordHash = await bcryptjs_1.default.hash(req.body.password, 10);
+            }
             await customer.save();
             res.status(200).json({ success: true, message: `Customer updated successfully`, data: customer });
         }

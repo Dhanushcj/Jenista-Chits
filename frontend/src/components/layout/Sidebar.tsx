@@ -34,7 +34,7 @@ export const Sidebar = ({ isOpen, setIsOpen }: SidebarProps) => {
       icon: Users, 
       subItems: [
         { name: 'Customer Details', href: '/admin/customers' },
-        { name: 'Add/Modify Customer', href: '/admin/customers/add' },
+        { name: 'Customer Registration', href: '/admin/customers/add' },
         { name: 'Registration Approvals', href: '/admin/customers/approvals' }
       ]
     },

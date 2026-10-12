@@ -8,6 +8,8 @@ export type ActionType = 'ADD' | 'VIEW' | 'MODIFY' | 'APPROVE' | null;
 interface ActionLayoutProps {
   title: string;
   allowedActions?: ActionType[];
+  defaultAction?: ActionType;
+  actionLabels?: { [key in 'ADD' | 'VIEW' | 'MODIFY' | 'APPROVE']?: string };
   onActionSelect?: (action: ActionType) => void;
   renderContent: (action: ActionType) => ReactNode;
   onConfirm?: () => void;
@@ -19,6 +21,8 @@ interface ActionLayoutProps {
 export const ActionLayout = ({
   title,
   allowedActions = ['ADD', 'VIEW', 'MODIFY', 'APPROVE'],
+  defaultAction = null,
+  actionLabels,
   onActionSelect,
   renderContent,
   onConfirm,
@@ -26,7 +30,7 @@ export const ActionLayout = ({
   onCancel,
   onClear
 }: ActionLayoutProps) => {
-  const [activeAction, setActiveAction] = useState<ActionType>(null);
+  const [activeAction, setActiveAction] = useState<ActionType>(defaultAction);
 
   const handleAction = (action: ActionType) => {
     setActiveAction(action);
@@ -46,7 +50,7 @@ export const ActionLayout = ({
               onClick={() => handleAction('ADD')}
               className="flex items-center"
             >
-              <Plus className="w-3.5 h-3.5 mr-1.5" /> Add
+              <Plus className="w-3.5 h-3.5 mr-1.5" /> {actionLabels?.ADD || 'Add'}
             </Button>
           )}
           {allowedActions.includes('VIEW') && (
@@ -56,7 +60,7 @@ export const ActionLayout = ({
               onClick={() => handleAction('VIEW')}
               className="flex items-center"
             >
-              <Eye className="w-3.5 h-3.5 mr-1.5" /> View
+              <Eye className="w-3.5 h-3.5 mr-1.5" /> {actionLabels?.VIEW || 'View'}
             </Button>
           )}
           {allowedActions.includes('MODIFY') && (
@@ -66,7 +70,7 @@ export const ActionLayout = ({
               onClick={() => handleAction('MODIFY')}
               className="flex items-center"
             >
-              <Edit className="w-3.5 h-3.5 mr-1.5" /> Modify
+              <Edit className="w-3.5 h-3.5 mr-1.5" /> {actionLabels?.MODIFY || 'Modify'}
             </Button>
           )}
           {allowedActions.includes('APPROVE') && (
