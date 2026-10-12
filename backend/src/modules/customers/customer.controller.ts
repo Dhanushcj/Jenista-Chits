@@ -16,9 +16,14 @@ export class CustomerController {
         throw new ApiError(400, 'Name and Mobile are required', 'VALIDATION_ERROR');
       }
 
-      const existing = await Customer.findOne({ phone });
+      const cleanPhone = phone.toString().replace(/\D/g, '');
+      if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
+        throw new ApiError(400, 'Mobile number must start with 6, 7, 8, or 9 and have exactly 10 digits', 'VALIDATION_ERROR');
+      }
+
+      const existing = await Customer.findOne({ phone: cleanPhone });
       if (existing) {
-        throw new ApiError(400, 'Customer with this mobile already exists', 'VALIDATION_ERROR');
+        throw new ApiError(409, 'Already registered sign in to continue', 'CUSTOMER_EXISTS');
       }
 
       let passwordHash;
@@ -32,7 +37,7 @@ export class CustomerController {
         ...req.body,
         customerCode,
         fullName,
-        phone,
+        phone: cleanPhone,
         address: address || req.body.address,
         passwordHash,
         createdBy: req.user?.userId,

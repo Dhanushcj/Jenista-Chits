@@ -485,10 +485,22 @@ export const AddModifyCustomer = () => {
           return;
         }
 
+        const cleanMobile = mobileVal.replace(/\D/g, '');
+        if (!/^[6-9]\d{9}$/.test(cleanMobile)) {
+          alert('Mobile number must start with 6, 7, 8, or 9 and have exactly 10 digits.');
+          return;
+        }
+
+        const isDuplicate = mockCustomers.some(c => (c.mobile && c.mobile.replace(/\D/g, '') === cleanMobile) || (c.phone && c.phone.replace(/\D/g, '') === cleanMobile));
+        if (isDuplicate) {
+          alert('Already registered sign in to continue');
+          return;
+        }
+
         const newCustomer: any = {
           id: `TC-${Math.floor(10000 + Math.random() * 90000)}`,
           name: nameVal,
-          mobile: mobileVal,
+          mobile: cleanMobile,
           dob: formData.get('dob') as string,
           gender: formData.get('gender') as string,
           email: formData.get('email') as string,
@@ -503,7 +515,7 @@ export const AddModifyCustomer = () => {
             method: 'POST',
             body: JSON.stringify({
               fullName: nameVal,
-              phone: mobileVal,
+              phone: cleanMobile,
               address: addressVal,
               email: newCustomer.email,
               gender: newCustomer.gender ? newCustomer.gender.toUpperCase() : undefined,
@@ -517,6 +529,11 @@ export const AddModifyCustomer = () => {
             newCustomer.mongoId = res.data._id;
           }
         } catch (err: any) {
+          const msg = err.message || '';
+          if (msg.includes('Already registered') || msg.includes('409') || msg.includes('exists')) {
+            alert('Already registered sign in to continue');
+            return;
+          }
           console.warn('Could not post customer to MongoDB directly:', err);
         }
 
