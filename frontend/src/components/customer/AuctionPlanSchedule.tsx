@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Calendar, Gavel, ShieldCheck, Sparkles, HelpCircle } from 'lucide-react';
+import { Calendar, ShieldCheck, HelpCircle } from 'lucide-react';
 
 interface AuctionMonthSchedule {
   month: number;
@@ -85,28 +85,6 @@ export const AuctionPlanSchedule = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header Banner */}
-      <div className="bg-gradient-to-r from-indigo-950 via-purple-900 to-indigo-900 text-white rounded-2xl p-6 md:p-8 shadow-lg relative overflow-hidden">
-        <div className="absolute top-0 right-0 -mt-10 -mr-10 w-44 h-44 bg-purple-400/10 rounded-full blur-2xl"></div>
-        <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/10 backdrop-blur-md rounded-full text-xs font-bold tracking-wide uppercase mb-3 text-purple-200">
-              <Sparkles className="w-3.5 h-3.5 text-amber-300" /> Tamil Nadu Standard Auction Scheme
-            </div>
-            <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight">
-              JENISTA CHITS • AUCTION PLAN SCHEDULE
-            </h2>
-            <p className="text-purple-200 text-sm md:text-base mt-1 font-medium">
-              ஏலச் சீட்டு அட்டவணை • 20 Months • 20 Members • Monthly Dividends
-            </p>
-          </div>
-          <div className="flex items-center gap-2 bg-purple-950/60 border border-purple-500/30 px-4 py-2 rounded-xl text-xs font-bold text-purple-200">
-            <Gavel className="w-4 h-4 text-amber-400" />
-            Max 30% Auction Discount Cap
-          </div>
-        </div>
-      </div>
-
       {/* Plan Category Quick Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
