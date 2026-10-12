@@ -109,7 +109,12 @@ export const AddModifyCustomerChit = () => {
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden">
-        {filtered.length === 0 ? (
+        {isLoading ? (
+          <div className="py-16 flex flex-col items-center justify-center text-center">
+            <div className="w-8 h-8 border-4 border-primary-600 border-t-transparent rounded-full animate-spin mb-3"></div>
+            <p className="text-neutral-500 text-sm">Loading pending approvals...</p>
+          </div>
+        ) : filtered.length === 0 ? (
           <div className="py-16 flex flex-col items-center justify-center text-center">
             <div className="w-16 h-16 bg-neutral-50 rounded-full flex items-center justify-center mb-4">
               <UserCheck className="w-8 h-8 text-neutral-400" />
