@@ -14,13 +14,17 @@ export const CustomerList = () => {
   const [hasSearched, setHasSearched] = useState(false);
   const [filteredCustomers, setFilteredCustomers] = useState<any[]>([]);
 
-  // Mock data loaded from localStorage
+  // Customer data loaded from localStorage
   const [allCustomers, setAllCustomers] = useState(() => {
     const saved = localStorage.getItem('mockCustomers');
     if (saved) {
       const parsed = JSON.parse(saved);
-      // Normalize schema in case they were added from AddModifyCustomer
-      return parsed.map((p: any) => ({
+      // Filter out legacy hardcoded mock customers
+      const filtered = parsed.filter((p: any) => !['TC-10045', 'TC-10046', 'TC-10047', 'TC-10048'].includes(p.id) && p.name !== 'Rahul Sharma');
+      if (filtered.length !== parsed.length) {
+        localStorage.setItem('mockCustomers', JSON.stringify(filtered));
+      }
+      return filtered.map((p: any) => ({
         ...p,
         phone: p.phone || p.mobile, 
         branch: p.branch || 'Head Office',
@@ -30,12 +34,7 @@ export const CustomerList = () => {
         status: p.status || 'ACTIVE'
       }));
     }
-    return [
-      { id: 'TC-10045', name: 'Rahul Sharma', phone: '+91 9876543210', aadhar: '1234 5678 9012', pan: 'ABCDE1234F', branch: 'Delhi Main', activeChits: 2, pending: 45000, agent: 'Amit Kumar', status: 'ACTIVE' },
-      { id: 'TC-10046', name: 'Priya Patel', phone: '+91 9876543211', aadhar: '9876 5432 1098', pan: 'VWXYZ5678G', branch: 'Mumbai Central', activeChits: 1, pending: 0, agent: 'Raj Singh', status: 'ACTIVE' },
-      { id: 'TC-10047', name: 'Vikram Singh', phone: '+91 9876543212', aadhar: '4567 8901 2345', pan: 'PQRS0987H', branch: 'Delhi Main', activeChits: 3, pending: 125000, agent: 'Amit Kumar', status: 'OVERDUE' },
-      { id: 'TC-10048', name: 'Anita Desai', phone: '+91 9876543213', aadhar: '3456 7890 1234', pan: 'LMNOP5432J', branch: 'Pune East', activeChits: 1, pending: 15000, agent: 'Suresh Patil', status: 'ACTIVE' },
-    ];
+    return [];
   });
 
   const handleDeleteCustomer = (id: string) => {
@@ -167,65 +166,71 @@ export const CustomerList = () => {
               </div>
             </div>
 
-            {isViewActive && hasSearched && filteredCustomers.length > 0 && (
-              <div className="overflow-x-auto min-h-[300px] bg-white">
-                <table className="min-w-full divide-y divide-neutral-200">
-                  <thead>
-                    <tr>
-                      <th className="table-header text-center">Customer</th>
-                      <th className="table-header text-center">Contact</th>
-                      <th className="table-header text-center">Identity</th>
-                      <th className="table-header text-center">Branch / Agent</th>
-                      <th className="table-header text-center">Pending Dues</th>
-                      <th className="table-header text-center">Status</th>
-                      <th className="table-header text-center">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-neutral-200 text-center">
-                    {filteredCustomers.map((c) => (
-                      <tr key={c.id} className="hover:bg-neutral-50 transition-colors">
-                        <td className="table-cell">
-                          <Link to={`/admin/customers/${c.id}`} className="font-medium text-primary-900 hover:text-primary-600 hover:underline transition-colors block">
-                            {c.name}
-                          </Link>
-                          <div className="text-xs text-neutral-500">{c.id}</div>
-                        </td>
-                        <td className="table-cell text-neutral-600">{c.phone}</td>
-                        <td className="table-cell">
-                          <div className="text-xs text-neutral-900">Aadhar: {c.aadhar}</div>
-                          <div className="text-xs text-neutral-500">PAN: {c.pan}</div>
-                        </td>
-                        <td className="table-cell">
-                          <div className="text-neutral-900">{c.branch}</div>
-                          <div className="text-xs text-neutral-500">{c.agent}</div>
-                        </td>
-                        <td className="table-cell">
-                          <span className={c.pending > 0 ? "text-danger font-medium" : "text-success font-medium"}>
-                            {formatCurrency(c.pending)}
-                          </span>
-                        </td>
-                        <td className="table-cell">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                            c.status === 'ACTIVE' ? 'bg-success-light text-success' : 'bg-danger-light text-danger'
-                          }`}>
-                            {c.status}
-                          </span>
-                        </td>
-                        <td className="table-cell">
-                          <div className="flex items-center justify-center space-x-3">
-                            <Link to={`/admin/customers/${c.id}`} className="text-neutral-400 hover:text-primary-900 transition-colors" title="View Profile">
-                              <Eye className="w-4 h-4" />
-                            </Link>
-                            <button onClick={() => handleDeleteCustomer(c.id)} className="text-neutral-400 hover:text-danger transition-colors" title="Delete Customer">
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
+            {isViewActive && hasSearched && (
+              filteredCustomers.length > 0 ? (
+                <div className="overflow-x-auto min-h-[300px] bg-white">
+                  <table className="min-w-full divide-y divide-neutral-200">
+                    <thead>
+                      <tr>
+                        <th className="table-header text-center">Customer</th>
+                        <th className="table-header text-center">Contact</th>
+                        <th className="table-header text-center">Identity</th>
+                        <th className="table-header text-center">Branch / Agent</th>
+                        <th className="table-header text-center">Pending Dues</th>
+                        <th className="table-header text-center">Status</th>
+                        <th className="table-header text-center">Actions</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-neutral-200 text-center">
+                      {filteredCustomers.map((c) => (
+                        <tr key={c.id} className="hover:bg-neutral-50 transition-colors">
+                          <td className="table-cell">
+                            <Link to={`/admin/customers/${c.id}`} className="font-medium text-primary-900 hover:text-primary-600 hover:underline transition-colors block">
+                              {c.name}
+                            </Link>
+                            <div className="text-xs text-neutral-500">{c.id}</div>
+                          </td>
+                          <td className="table-cell text-neutral-600">{c.phone}</td>
+                          <td className="table-cell">
+                            <div className="text-xs text-neutral-900">Aadhar: {c.aadhar}</div>
+                            <div className="text-xs text-neutral-500">PAN: {c.pan}</div>
+                          </td>
+                          <td className="table-cell">
+                            <div className="text-neutral-900">{c.branch}</div>
+                            <div className="text-xs text-neutral-500">{c.agent}</div>
+                          </td>
+                          <td className="table-cell">
+                            <span className={c.pending > 0 ? "text-danger font-medium" : "text-success font-medium"}>
+                              {formatCurrency(c.pending)}
+                            </span>
+                          </td>
+                          <td className="table-cell">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                              c.status === 'ACTIVE' ? 'bg-success-light text-success' : 'bg-danger-light text-danger'
+                            }`}>
+                              {c.status}
+                            </span>
+                          </td>
+                          <td className="table-cell">
+                            <div className="flex items-center justify-center space-x-3">
+                              <Link to={`/admin/customers/${c.id}`} className="text-neutral-400 hover:text-primary-900 transition-colors" title="View Profile">
+                                <Eye className="w-4 h-4" />
+                              </Link>
+                              <button onClick={() => handleDeleteCustomer(c.id)} className="text-neutral-400 hover:text-danger transition-colors" title="Delete Customer">
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="py-12 text-center text-neutral-400 bg-white">
+                  <p className="text-sm font-medium">No customers found matching the search criteria.</p>
+                </div>
+              )
             )}
           </div>
         </div>

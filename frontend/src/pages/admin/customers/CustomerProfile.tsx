@@ -113,26 +113,33 @@ export const CustomerProfile = () => {
     setSelectedChitForPayment('');
   };
 
-  // Dynamic values or fallbacks
-  const displayName = customer?.name || 'Rahul Sharma';
-  const displayId = customer?.id || id || 'TC-10045';
-  const displayPhone = customer?.mobile || customer?.phone || '+91 9876543210';
-  const displayEmail = customer?.email || 'customer@example.com';
-  const displayAddress = customer?.address || 'New Delhi, DL';
-  const displayAadhar = customer?.aadhar || 'XXXX XXXX 1234';
-  const displayPan = customer?.pan || 'ABCDE1234F';
+  // Dynamic values or clean fallbacks
+  const displayName = customer?.name || customer?.fullName || 'Customer';
+  const displayId = customer?.id || customer?.customerCode || id || 'N/A';
+  const displayPhone = customer?.mobile || customer?.phone || 'N/A';
+  const displayEmail = customer?.email || 'N/A';
+  const displayAddress = customer?.address || 'N/A';
+  const displayAadhar = customer?.aadhar || 'N/A';
+  const displayPan = customer?.pan || 'N/A';
 
   const displayTotalPaid = customer?.totalPaid || 0;
   const displayPending = customer?.pending || 0;
   const displayActiveChits = customer?.chits?.length || customer?.activeChits || 0;
   const displayAgent = customer?.agent || 'System Admin';
   
-  const isMockRahul = displayId === 'TC-10045';
-  const recentActivity = isMockRahul ? [
-    { title: "Payment Received", amount: 25000, desc: "For group Gold-50L", date: new Date(), type: 'credit' },
-    { title: "Won Auction Prize", amount: 485000, desc: "Group Silver-25L", date: new Date(Date.now() - 86400000 * 5), type: 'credit' },
-    { title: "Missed Installment", amount: 15000, desc: "Group Bronze-5L", date: new Date(Date.now() - 86400000 * 15), type: 'debit' }
-  ] : [];
+  // Real transactions from ledger for recent activity
+  const recentActivity = (() => {
+    const ledger = JSON.parse(localStorage.getItem('ledgerTransactions') || '[]');
+    return ledger.filter((t: any) => 
+      (displayId !== 'N/A' && (t.reference?.includes(displayId) || t.description?.includes(displayId)))
+    ).map((t: any) => ({
+      title: t.description || 'Payment Transaction',
+      amount: t.amount,
+      desc: t.reference || 'Ledger Entry',
+      date: new Date(t.date),
+      type: t.type === 'CREDIT' ? 'credit' : 'debit'
+    }));
+  })();
 
   const tabs = [
     { id: 'overview', name: 'Overview' },
@@ -328,7 +335,7 @@ export const CustomerProfile = () => {
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-neutral-100">
-                      {recentActivity.map((act, i) => (
+                      {recentActivity.map((act: any, i: number) => (
                         <tr key={i} className="hover:bg-neutral-50/80 transition-colors">
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center">

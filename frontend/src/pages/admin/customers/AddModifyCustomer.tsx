@@ -134,10 +134,11 @@ export const AddModifyCustomer = () => {
   
   const [mockCustomers, setMockCustomers] = useState<any[]>(() => {
     const saved = localStorage.getItem('mockCustomers');
-    if (saved) return JSON.parse(saved);
-    return [
-      { id: 'TC-10045', name: 'Rahul Sharma', mobile: '+91 9876543210', dob: '1990-05-15', gender: 'Male', email: 'rahul.sharma@example.com', address: 'New Delhi, DL', aadhar: '1234 5678 9012', pan: 'ABCDE1234F' }
-    ];
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return parsed.filter((p: any) => p.id !== 'TC-10045' && p.name !== 'Rahul Sharma');
+    }
+    return [];
   });
   const [activeCustomer, setActiveCustomer] = useState<any>(null);
 
