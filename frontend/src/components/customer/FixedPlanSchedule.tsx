@@ -1,39 +1,22 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Calendar, Eye, ShieldCheck, Award } from 'lucide-react';
+import { formatCurrency } from '../../utils/format';
+import { calculateFixedPlanSchedule } from '../../utils/chitCalculations';
 
-interface MonthSchedule {
-  month: number;
-  due1: number;
-  pay1: number;
-  due2: number;
-  pay2: number;
-  due5: number;
-  pay5: number;
-  due10: number;
-  pay10: number;
-}
+const defaultFixedCategories = [
+  { id: 1, value: 100000 },
+  { id: 2, value: 200000 },
+  { id: 3, value: 500000 },
+  { id: 4, value: 1000000 },
+];
 
-const scheduleData: MonthSchedule[] = [
-  { month: 1, due1: 5000, pay1: 95000, due2: 10000, pay2: 190000, due5: 25000, pay5: 475000, due10: 50000, pay10: 950000 },
-  { month: 2, due1: 5000, pay1: 96000, due2: 10000, pay2: 192000, due5: 25000, pay5: 480000, due10: 50000, pay10: 960000 },
-  { month: 3, due1: 5000, pay1: 97000, due2: 10000, pay2: 194000, due5: 25000, pay5: 485000, due10: 50000, pay10: 970000 },
-  { month: 4, due1: 5000, pay1: 98000, due2: 10000, pay2: 196000, due5: 25000, pay5: 490000, due10: 50000, pay10: 980000 },
-  { month: 5, due1: 5000, pay1: 99000, due2: 10000, pay2: 198000, due5: 25000, pay5: 495000, due10: 50000, pay10: 990000 },
-  { month: 6, due1: 5000, pay1: 100000, due2: 10000, pay2: 200000, due5: 25000, pay5: 500000, due10: 50000, pay10: 1000000 },
-  { month: 7, due1: 5000, pay1: 101000, due2: 10000, pay2: 202000, due5: 25000, pay5: 505000, due10: 50000, pay10: 1010000 },
-  { month: 8, due1: 5000, pay1: 102000, due2: 10000, pay2: 204000, due5: 25000, pay5: 510000, due10: 50000, pay10: 1020000 },
-  { month: 9, due1: 5000, pay1: 103000, due2: 10000, pay2: 206000, due5: 25000, pay5: 515000, due10: 50000, pay10: 1030000 },
-  { month: 10, due1: 5000, pay1: 104000, due2: 10000, pay2: 208000, due5: 25000, pay5: 520000, due10: 50000, pay10: 1040000 },
-  { month: 11, due1: 5000, pay1: 105000, due2: 10000, pay2: 210000, due5: 25000, pay5: 525000, due10: 50000, pay10: 1050000 },
-  { month: 12, due1: 5000, pay1: 106000, due2: 10000, pay2: 212000, due5: 25000, pay5: 530000, due10: 50000, pay10: 1060000 },
-  { month: 13, due1: 5000, pay1: 107000, due2: 10000, pay2: 214000, due5: 25000, pay5: 535000, due10: 50000, pay10: 1070000 },
-  { month: 14, due1: 5000, pay1: 108000, due2: 10000, pay2: 216000, due5: 25000, pay5: 540000, due10: 50000, pay10: 1080000 },
-  { month: 15, due1: 5000, pay1: 109000, due2: 10000, pay2: 218000, due5: 25000, pay5: 545000, due10: 50000, pay10: 1090000 },
-  { month: 16, due1: 5000, pay1: 110000, due2: 10000, pay2: 220000, due5: 25000, pay5: 550000, due10: 50000, pay10: 1100000 },
-  { month: 17, due1: 5000, pay1: 111000, due2: 10000, pay2: 222000, due5: 25000, pay5: 555000, due10: 50000, pay10: 1110000 },
-  { month: 18, due1: 5000, pay1: 112000, due2: 10000, pay2: 224000, due5: 25000, pay5: 560000, due10: 50000, pay10: 1120000 },
-  { month: 19, due1: 5000, pay1: 113000, due2: 10000, pay2: 226000, due5: 25000, pay5: 565000, due10: 50000, pay10: 1130000 },
-  { month: 20, due1: 5000, pay1: 114000, due2: 10000, pay2: 228000, due5: 25000, pay5: 570000, due10: 50000, pay10: 1140000 },
+const colorSchemes = [
+  { border: 'border-orange-500', bg: 'bg-orange-50', text: 'text-orange-950', badge: 'bg-orange-600 text-white', th: 'bg-orange-600', subDue: 'bg-orange-500/95', subPay: 'bg-orange-500/80', cellBg: 'bg-orange-50/50', cellPay: 'text-orange-900' },
+  { border: 'border-purple-500', bg: 'bg-purple-50', text: 'text-purple-950', badge: 'bg-purple-600 text-white', th: 'bg-purple-700', subDue: 'bg-purple-600/95', subPay: 'bg-purple-600/80', cellBg: 'bg-purple-50/50', cellPay: 'text-purple-900' },
+  { border: 'border-sky-500', bg: 'bg-sky-50', text: 'text-sky-950', badge: 'bg-sky-600 text-white', th: 'bg-sky-600', subDue: 'bg-sky-500/95', subPay: 'bg-sky-500/80', cellBg: 'bg-sky-50/50', cellPay: 'text-sky-900' },
+  { border: 'border-amber-500', bg: 'bg-amber-50', text: 'text-amber-950', badge: 'bg-amber-600 text-white', th: 'bg-amber-500', subDue: 'bg-amber-400/95 text-amber-950', subPay: 'bg-amber-400/80 text-amber-950', cellBg: 'bg-amber-50/50', cellPay: 'text-amber-900' },
+  { border: 'border-emerald-500', bg: 'bg-emerald-50', text: 'text-emerald-950', badge: 'bg-emerald-600 text-white', th: 'bg-emerald-600', subDue: 'bg-emerald-500/95', subPay: 'bg-emerald-500/80', cellBg: 'bg-emerald-50/50', cellPay: 'text-emerald-900' },
+  { border: 'border-rose-500', bg: 'bg-rose-50', text: 'text-rose-950', badge: 'bg-rose-600 text-white', th: 'bg-rose-600', subDue: 'bg-rose-500/95', subPay: 'bg-rose-500/80', cellBg: 'bg-rose-50/50', cellPay: 'text-rose-900' },
 ];
 
 const rules = [
@@ -67,44 +50,69 @@ const rules = [
   },
 ];
 
-const postDrawRules = [
-  { plan: '₹1,00,000 Chit', base: '₹5,000', add: '₹1,000', total: '₹6,000' },
-  { plan: '₹2,00,000 Chit', base: '₹10,000', add: '₹2,000', total: '₹12,000' },
-  { plan: '₹5,00,000 Chit', base: '₹25,000', add: '₹5,000', total: '₹30,000' },
-  { plan: '₹10,00,000 Chit', base: '₹50,000', add: '₹10,000', total: '₹60,000' },
-];
-
 export const FixedPlanSchedule = () => {
-  const [selectedPlan, setSelectedPlan] = useState<'all' | '100000' | '200000' | '500000' | '1000000'>('all');
+  const [categories, setCategories] = useState<{ id: number; value: number }[]>(() => {
+    const saved = localStorage.getItem('mockFixedCategories');
+    return saved ? JSON.parse(saved) : defaultFixedCategories;
+  });
+
+  const [selectedPlan, setSelectedPlan] = useState<string>('all');
   const [showPosterModal, setShowPosterModal] = useState(false);
+
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const saved = localStorage.getItem('mockFixedCategories');
+      if (saved) setCategories(JSON.parse(saved));
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
+  // Compute auto-calculated plan details for each category
+  const planDetails = categories.map((cat, idx) => {
+    const calc = calculateFixedPlanSchedule(cat.value);
+    const styling = colorSchemes[idx % colorSchemes.length];
+    return {
+      id: cat.value.toString(),
+      value: cat.value,
+      name: formatCurrency(cat.value),
+      dueStr: `${formatCurrency(calc.monthlyDue)}/mo`,
+      calc,
+      styling,
+    };
+  });
+
+  const visiblePlans = selectedPlan === 'all' 
+    ? planDetails 
+    : planDetails.filter(p => p.id === selectedPlan);
+
+  const months = Array.from({ length: 20 }, (_, i) => i + 1);
 
   return (
     <div className="space-y-6">
       {/* Plan Category Quick Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { id: '100000', name: '₹1,00,000', due: '₹5,000/mo', color: 'border-orange-500 bg-orange-50 text-orange-950', badge: 'bg-orange-500 text-white' },
-          { id: '200000', name: '₹2,00,000', due: '₹10,000/mo', color: 'border-purple-500 bg-purple-50 text-purple-950', badge: 'bg-purple-600 text-white' },
-          { id: '500000', name: '₹5,00,000', due: '₹25,000/mo', color: 'border-sky-500 bg-sky-50 text-sky-950', badge: 'bg-sky-600 text-white' },
-          { id: '1000000', name: '₹10,00,000', due: '₹50,000/mo', color: 'border-amber-500 bg-amber-50 text-amber-950', badge: 'bg-amber-600 text-white' },
-        ].map((p) => (
-          <button
-            key={p.id}
-            onClick={() => setSelectedPlan(selectedPlan === p.id as any ? 'all' : p.id as any)}
-            className={`p-4 rounded-xl border-2 text-left transition-all ${
-              selectedPlan === p.id ? 'ring-2 ring-primary-600 shadow-md scale-[1.02]' : 'hover:shadow'
-            } ${p.color}`}
-          >
-            <div className="flex justify-between items-center mb-1">
-              <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full ${p.badge}`}>
-                20 Months
-              </span>
-              {selectedPlan === p.id && <span className="text-xs font-bold text-primary-700">Selected</span>}
-            </div>
-            <h4 className="text-lg font-black">{p.name}</h4>
-            <p className="text-xs font-semibold opacity-80 mt-1">Due: {p.due}</p>
-          </button>
-        ))}
+        {planDetails.map((p) => {
+          const isSelected = selectedPlan === p.id;
+          return (
+            <button
+              key={p.id}
+              onClick={() => setSelectedPlan(selectedPlan === p.id ? 'all' : p.id)}
+              className={`p-4 rounded-xl border-2 text-left transition-all ${
+                isSelected ? 'ring-2 ring-primary-600 shadow-md scale-[1.02]' : 'hover:shadow'
+              } ${p.styling.border} ${p.styling.bg} ${p.styling.text}`}
+            >
+              <div className="flex justify-between items-center mb-1">
+                <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full ${p.styling.badge}`}>
+                  20 Months
+                </span>
+                {isSelected && <span className="text-xs font-bold text-primary-700">Selected</span>}
+              </div>
+              <h4 className="text-lg font-black">{p.name}</h4>
+              <p className="text-xs font-semibold opacity-80 mt-1">Due: {p.dueStr}</p>
+            </button>
+          );
+        })}
       </div>
 
       {/* Filter Tabs & Poster Action */}
@@ -119,39 +127,19 @@ export const FixedPlanSchedule = () => {
           >
             All Plans
           </button>
-          <button
-            onClick={() => setSelectedPlan('100000')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-              selectedPlan === '100000' ? 'bg-orange-600 text-white' : 'text-neutral-600 hover:bg-neutral-100'
-            }`}
-          >
-            ₹1,00,000
-          </button>
-          <button
-            onClick={() => setSelectedPlan('200000')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-              selectedPlan === '200000' ? 'bg-purple-600 text-white' : 'text-neutral-600 hover:bg-neutral-100'
-            }`}
-          >
-            ₹2,00,000
-          </button>
-          <button
-            onClick={() => setSelectedPlan('500000')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-              selectedPlan === '500000' ? 'bg-sky-600 text-white' : 'text-neutral-600 hover:bg-neutral-100'
-            }`}
-          >
-            ₹5,00,000
-          </button>
-          <button
-            onClick={() => setSelectedPlan('1000000')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-              selectedPlan === '1000000' ? 'bg-amber-600 text-white' : 'text-neutral-600 hover:bg-neutral-100'
-            }`}
-          >
-            ₹10,00,000
-          </button>
+          {planDetails.map((p) => (
+            <button
+              key={p.id}
+              onClick={() => setSelectedPlan(p.id)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                selectedPlan === p.id ? 'bg-emerald-700 text-white' : 'text-neutral-600 hover:bg-neutral-100'
+              }`}
+            >
+              {p.name}
+            </button>
+          ))}
         </div>
+
         <button
           onClick={() => setShowPosterModal(true)}
           className="flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 px-3 py-1.5 rounded-lg font-bold text-xs transition-colors shrink-0 self-end sm:self-auto mr-1"
@@ -167,7 +155,7 @@ export const FixedPlanSchedule = () => {
           <div className="flex items-center gap-2">
             <Calendar className="w-5 h-5 text-emerald-300" />
             <h3 className="font-bold text-base md:text-lg tracking-wide uppercase">
-              Schedule Table (Month 1 to 20)
+              Schedule Table (Month 1 to 20 • Auto-Calculated)
             </h3>
           </div>
           <span className="text-xs bg-emerald-800 text-emerald-200 px-3 py-1 rounded-full font-semibold">
@@ -183,112 +171,46 @@ export const FixedPlanSchedule = () => {
                 <th rowSpan={2} className="bg-red-800 px-3 py-3 border-r border-red-700 w-16">
                   MONTH
                 </th>
-                {(selectedPlan === 'all' || selectedPlan === '100000') && (
-                  <th colSpan={2} className="bg-orange-600 px-4 py-2 border-r border-orange-500">
-                    1,00,000
+                {visiblePlans.map((p) => (
+                  <th key={p.id} colSpan={2} className={`${p.styling.th} px-4 py-2 border-r border-white/20`}>
+                    {p.name}
                   </th>
-                )}
-                {(selectedPlan === 'all' || selectedPlan === '200000') && (
-                  <th colSpan={2} className="bg-purple-700 px-4 py-2 border-r border-purple-600">
-                    2,00,000
-                  </th>
-                )}
-                {(selectedPlan === 'all' || selectedPlan === '500000') && (
-                  <th colSpan={2} className="bg-sky-600 px-4 py-2 border-r border-sky-500">
-                    5,00,000
-                  </th>
-                )}
-                {(selectedPlan === 'all' || selectedPlan === '1000000') && (
-                  <th colSpan={2} className="bg-amber-500 px-4 py-2">
-                    10,00,000
-                  </th>
-                )}
+                ))}
               </tr>
 
               {/* Sub Headers (Due vs Payment) */}
               <tr className="text-xs font-bold text-white uppercase tracking-wider">
-                {(selectedPlan === 'all' || selectedPlan === '100000') && (
-                  <>
-                    <th className="bg-orange-500/95 px-3 py-2 border-r border-orange-400">DUE</th>
-                    <th className="bg-orange-500/80 px-3 py-2 border-r border-orange-400">PAYMENT</th>
-                  </>
-                )}
-                {(selectedPlan === 'all' || selectedPlan === '200000') && (
-                  <>
-                    <th className="bg-purple-600/95 px-3 py-2 border-r border-purple-500">DUE</th>
-                    <th className="bg-purple-600/80 px-3 py-2 border-r border-purple-500">PAYMENT</th>
-                  </>
-                )}
-                {(selectedPlan === 'all' || selectedPlan === '500000') && (
-                  <>
-                    <th className="bg-sky-500/95 px-3 py-2 border-r border-sky-400">DUE</th>
-                    <th className="bg-sky-500/80 px-3 py-2 border-r border-sky-400">PAYMENT</th>
-                  </>
-                )}
-                {(selectedPlan === 'all' || selectedPlan === '1000000') && (
-                  <>
-                    <th className="bg-amber-400/95 text-amber-950 px-3 py-2 border-r border-amber-300">DUE</th>
-                    <th className="bg-amber-400/80 text-amber-950 px-3 py-2">PAYMENT</th>
-                  </>
-                )}
+                {visiblePlans.map((p) => (
+                  <tr key={`${p.id}-sub`} className="contents">
+                    <th className={`${p.styling.subDue} px-3 py-2 border-r border-white/20`}>DUE</th>
+                    <th className={`${p.styling.subPay} px-3 py-2 border-r border-white/20`}>PAYMENT</th>
+                  </tr>
+                ))}
               </tr>
             </thead>
 
             <tbody className="divide-y divide-neutral-200 font-semibold">
-              {scheduleData.map((row) => (
-                <tr key={row.month} className="hover:bg-neutral-50/80 transition-colors">
+              {months.map((m) => (
+                <tr key={m} className="hover:bg-neutral-50/80 transition-colors">
                   {/* Month Index */}
                   <td className="bg-red-800 text-white font-bold py-2.5 px-3 border-r border-red-700">
-                    {row.month}
+                    {m}
                   </td>
 
-                  {/* 1,00,000 Plan */}
-                  {(selectedPlan === 'all' || selectedPlan === '100000') && (
-                    <>
-                      <td className="py-2.5 px-3 bg-orange-50/50 text-orange-950 border-r border-neutral-100">
-                        {row.due1.toLocaleString('en-IN')}
-                      </td>
-                      <td className="py-2.5 px-3 bg-orange-50/20 text-orange-900 font-bold border-r border-neutral-200">
-                        {row.pay1.toLocaleString('en-IN')}
-                      </td>
-                    </>
-                  )}
-
-                  {/* 2,00,000 Plan */}
-                  {(selectedPlan === 'all' || selectedPlan === '200000') && (
-                    <>
-                      <td className="py-2.5 px-3 bg-purple-50/50 text-purple-950 border-r border-neutral-100">
-                        {row.due2.toLocaleString('en-IN')}
-                      </td>
-                      <td className="py-2.5 px-3 bg-purple-50/20 text-purple-900 font-bold border-r border-neutral-200">
-                        {row.pay2.toLocaleString('en-IN')}
-                      </td>
-                    </>
-                  )}
-
-                  {/* 5,00,000 Plan */}
-                  {(selectedPlan === 'all' || selectedPlan === '500000') && (
-                    <>
-                      <td className="py-2.5 px-3 bg-sky-50/50 text-sky-950 border-r border-neutral-100">
-                        {row.due5.toLocaleString('en-IN')}
-                      </td>
-                      <td className="py-2.5 px-3 bg-sky-50/20 text-sky-900 font-bold border-r border-neutral-200">
-                        {row.pay5.toLocaleString('en-IN')}
-                      </td>
-                    </>
-                  )}
-
-                  {/* 10,00,000 Plan */}
-                  {(selectedPlan === 'all' || selectedPlan === '1000000') && (
-                    <>
-                      <td className="py-2.5 px-3 bg-amber-50/50 text-amber-950 border-r border-neutral-100">
-                        {row.due10.toLocaleString('en-IN')}
-                      </td>
-                      <td className="py-2.5 px-3 bg-amber-50/20 text-amber-900 font-bold">
-                        {row.pay10.toLocaleString('en-IN')}
-                      </td>
-                    </>
-                  )}
+                  {/* Columns for each visible plan */}
+                  {visiblePlans.map((p) => {
+                    const row = p.calc.schedule[m - 1];
+                    return (
+                      <tr key={`${p.id}-${m}`} className="contents">
+                        <td className={`py-2.5 px-3 ${p.styling.cellBg} border-r border-neutral-100`}>
+                          {row ? formatCurrency(row.due) : '-'}
+                        </td>
+                        <td className={`py-2.5 px-3 ${p.styling.cellBg} ${p.styling.cellPay} font-bold border-r border-neutral-200`}>
+                          {row ? formatCurrency(row.payout) : '-'}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tr>
               ))}
             </tbody>
@@ -305,17 +227,17 @@ export const FixedPlanSchedule = () => {
           </h4>
         </div>
         <p className="text-xs text-amber-800 mb-4 font-medium">
-          Once you win/receive the prize money, your revised monthly installments for the remaining months:
+          Once you win/receive the prize money, your revised monthly installments for the remaining months (Monthly Due + 1% Chit Value):
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {postDrawRules.map((rule, idx) => (
-            <div key={idx} className="bg-white p-3.5 rounded-xl border border-amber-200 shadow-sm flex flex-col justify-between">
-              <span className="text-xs font-bold text-amber-900 uppercase">{rule.plan}</span>
+          {planDetails.map((p) => (
+            <div key={p.id} className="bg-white p-3.5 rounded-xl border border-amber-200 shadow-sm flex flex-col justify-between">
+              <span className="text-xs font-bold text-amber-900 uppercase">{p.name} Chit</span>
               <div className="mt-2 text-sm text-neutral-600 font-medium">
-                {rule.base} + <span className="text-amber-700 font-bold">{rule.add}</span>
+                {formatCurrency(p.calc.monthlyDue)} + <span className="text-amber-700 font-bold">{formatCurrency(p.calc.postDrawFee)}</span>
               </div>
               <div className="mt-1 text-base font-black text-amber-950">
-                = {rule.total} / month
+                = {formatCurrency(p.calc.postDrawTotalDue)} / month
               </div>
             </div>
           ))}
