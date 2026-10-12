@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Layers, TrendingUp, ArrowLeft, Plus, X, CheckCircle2, Users, IndianRupee, PieChart as PieChartIcon } from 'lucide-react';
+import { Layers, TrendingUp, ArrowLeft, Plus, X, Users, IndianRupee, PieChart as PieChartIcon } from 'lucide-react';
 import { formatCurrency } from '../../utils/format';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 import { fetchClient } from '../../api/client';
@@ -50,7 +50,16 @@ export const AdminDashboard = () => {
     const c = localStorage.getItem('mockCustomers');
     if (c) setCustomers(JSON.parse(c));
 
-    // Fetch live customers from MongoDB
+    // Listen to real-time storage updates
+    const handleStorageChange = () => {
+      const freshG = localStorage.getItem('mockChitGroups');
+      if (freshG) setChitGroups(JSON.parse(freshG));
+      const freshC = localStorage.getItem('mockCustomers');
+      if (freshC) setCustomers(JSON.parse(freshC));
+    };
+    window.addEventListener('storage', handleStorageChange);
+
+    // Fetch live customers from MongoDB safely without overwriting local customers
     fetchClient('/customers')
       .then((res: any) => {
         if (res && res.data && Array.isArray(res.data)) {
@@ -76,11 +85,23 @@ export const AdminDashboard = () => {
               chits: chits,
             };
           });
-          setCustomers(mapped);
-          localStorage.setItem('mockCustomers', JSON.stringify(mapped));
+          const localOnly = localSaved.filter((lc: any) => 
+            !res.data.some((item: any) => 
+              (item._id && lc.mongoId === item._id) || 
+              (item.customerCode && lc.id === item.customerCode) ||
+              (item.phone && (lc.mobile === item.phone || lc.phone === item.phone))
+            )
+          );
+          const combined = [...mapped, ...localOnly];
+          setCustomers(combined);
+          localStorage.setItem('mockCustomers', JSON.stringify(combined));
         }
       })
       .catch((err: any) => console.warn('Could not sync admin dashboard customers:', err));
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
   }, []);
 
   const handleCategoryClick = (type: string, value: number) => {
@@ -89,7 +110,9 @@ export const AdminDashboard = () => {
   };
 
   const handleGroupClick = (group: any) => {
-    setSelectedGroup(group);
+    const latestGroups = JSON.parse(localStorage.getItem('mockChitGroups') || '[]');
+    const freshGroup = latestGroups.find((g: any) => g.id === group.id || g.name === group.name) || group;
+    setSelectedGroup(freshGroup);
   };
 
   const handleBackToCategories = () => {
@@ -124,29 +147,65 @@ export const AdminDashboard = () => {
     setNewGroupName('');
   };
 
-  const handleSearchCustomer = (mobile: string) => {
-    setSearchMobile(mobile);
-    if (mobile.length >= 10) {
-      const match = customers.find(c => 
-        (c.mobile && c.mobile.includes(mobile)) || 
-        (c.phone && c.phone.includes(mobile)) || 
-        (c.id && c.id.includes(mobile))
-      );
-      setFoundCustomer(match || null);
+  const [searchSuggestions, setSearchSuggestions] = useState<any[]>([]);
+
+  const handleSearchCustomer = (query: string) => {
+    setSearchMobile(query);
+    const q = query.trim().toLowerCase();
+    const cleanDigits = query.replace(/\D/g, '');
+
+    const diskCusts = JSON.parse(localStorage.getItem('mockCustomers') || '[]');
+    const sourceList: any[] = diskCusts.length > 0 ? diskCusts : customers;
+
+    if (!q) {
+      setFoundCustomer(null);
+      setSearchSuggestions(sourceList.slice(0, 5));
+      return;
+    }
+
+    const matches = sourceList.filter((c: any) => {
+      const cMobile = (c.mobile || c.phone || '').replace(/\D/g, '');
+      const cId = (c.id || c.customerCode || '').toLowerCase();
+      const cName = (c.name || c.fullName || '').toLowerCase();
+      return (cleanDigits && cMobile.includes(cleanDigits)) || cId.includes(q) || cName.includes(q);
+    });
+
+    setSearchSuggestions(matches);
+
+    // Auto-select exact match
+    const exact = matches.find((c: any) => {
+      const cMobile = (c.mobile || c.phone || '').replace(/\D/g, '');
+      const cId = (c.id || c.customerCode || '').toLowerCase();
+      return (cleanDigits.length === 10 && cMobile === cleanDigits) || (cId && cId === q);
+    });
+
+    if (exact) {
+      setFoundCustomer(exact);
+    } else if (matches.length === 1 && (cleanDigits.length >= 10 || q.length >= 4)) {
+      setFoundCustomer(matches[0]);
     } else {
       setFoundCustomer(null);
     }
   };
 
   const handleEnrollCustomer = () => {
-    const val = Number(customChitValue);
-    if (!foundCustomer || !dueDate || !selectedGroup || isNaN(val) || val <= 0) return;
-    
+    if (!foundCustomer) {
+      alert('Please search and select a customer to enroll.');
+      return;
+    }
+    const val = Number(customChitValue) || Number(selectedGroup.value) || 100000;
+    const effectiveDueDate = dueDate || new Date(Date.now() + 15 * 86400000).toISOString().split('T')[0];
     const installment = val * 0.05;
-    const ticketNumber = ((selectedGroup.enrolledMembers?.length || selectedGroup.filled || 0) + 1).toString().padStart(3, '0');
+
+    // Load freshest group
+    const allGroups = JSON.parse(localStorage.getItem('mockChitGroups') || '[]');
+    const currentGroup = allGroups.find((g: any) => g.id === selectedGroup.id || g.name === selectedGroup.name) || selectedGroup;
+    const currentEnrolled = Array.isArray(currentGroup.enrolledMembers) ? currentGroup.enrolledMembers : [];
+
+    const ticketNumber = (currentEnrolled.length + 1).toString().padStart(3, '0');
     
     const memberRecord = {
-      customerId: foundCustomer.id || foundCustomer.customerCode,
+      customerId: foundCustomer.id || foundCustomer.customerCode || foundCustomer.mobile,
       customerName: foundCustomer.name || foundCustomer.fullName,
       mobile: foundCustomer.mobile || foundCustomer.phone,
       phone: foundCustomer.mobile || foundCustomer.phone,
@@ -155,7 +214,7 @@ export const AdminDashboard = () => {
       groupName: selectedGroup.name || selectedGroup.id,
       chitValue: val,
       monthlyInstallment: installment,
-      dueDate: dueDate,
+      dueDate: effectiveDueDate,
       joinedAt: new Date().toISOString(),
       paymentStatus: 'DUE',
       pending: installment,
@@ -168,7 +227,7 @@ export const AdminDashboard = () => {
       ticketNumber: ticketNumber,
       status: 'Active',
       joinedAt: new Date().toISOString(),
-      dueDate: dueDate,
+      dueDate: effectiveDueDate,
       chitValue: val,
       monthlyInstallment: installment,
       paymentStatus: 'DUE',
@@ -176,18 +235,10 @@ export const AdminDashboard = () => {
       paidAmount: 0,
       pending: installment,
       customerName: foundCustomer.name || foundCustomer.fullName,
-      customerId: foundCustomer.id
+      customerId: foundCustomer.id || foundCustomer.customerCode || foundCustomer.mobile
     };
 
     const cleanMobile = (foundCustomer.mobile || foundCustomer.phone || '').replace(/\D/g, '');
-
-    const updatedCustomer = { 
-      ...foundCustomer, 
-      pending: (Number(foundCustomer.pending) || 0) + installment,
-      totalPending: (Number(foundCustomer.totalPending) || 0) + installment,
-      chits: [...(foundCustomer.chits || []).filter((ch: any) => ch.groupId !== selectedGroup.id), newChit],
-      activeChits: ((foundCustomer.chits || []).filter((ch: any) => ch.groupId !== selectedGroup.id).length + 1)
-    };
 
     // 1. Update localStorage mockCustomers reliably
     const localSaved = JSON.parse(localStorage.getItem('mockCustomers') || '[]');
@@ -201,75 +252,67 @@ export const AdminDashboard = () => {
         (cleanMobile && cMobile === cleanMobile);
       if (isMatch) {
         foundInLocal = true;
-        return updatedCustomer;
+        const existingChits = Array.isArray(c.chits) ? c.chits.filter((ch: any) => ch.groupId !== selectedGroup.id && ch.groupName !== selectedGroup.name) : [];
+        return {
+          ...c,
+          pending: (Number(c.pending) || 0) + installment,
+          chits: [...existingChits, newChit],
+          activeChits: existingChits.length + 1
+        };
       }
       return c;
     });
     if (!foundInLocal) {
-      updatedLocal.push(updatedCustomer);
+      updatedLocal.push({
+        ...foundCustomer,
+        pending: installment,
+        chits: [newChit],
+        activeChits: 1
+      });
     }
     localStorage.setItem('mockCustomers', JSON.stringify(updatedLocal));
+    setCustomers(updatedLocal);
 
-    // 2. Update React customers state
-    let foundInState = false;
-    const updatedCustomers = customers.map(c => {
-      const cMobile = (c.mobile || c.phone || '').replace(/\D/g, '');
-      const isMatch = 
-        c.id === foundCustomer.id || 
-        c.mongoId === foundCustomer.id || 
-        (foundCustomer.mongoId && c.mongoId === foundCustomer.mongoId) ||
-        (cleanMobile && cMobile === cleanMobile);
-      if (isMatch) {
-        foundInState = true;
-        return updatedCustomer;
-      }
-      return c;
-    });
-    if (!foundInState) {
-      updatedCustomers.push(updatedCustomer);
-    }
-    setCustomers(updatedCustomers);
-
-    // 3. Update enrolledMembers directly on selectedGroup & chitGroups
-    const existingMembers = Array.isArray(selectedGroup.enrolledMembers) ? selectedGroup.enrolledMembers : [];
+    // 2. Update enrolledMembers directly on selectedGroup & chitGroups
     const updatedMembers = [
-      ...existingMembers.filter((m: any) => m.customerId !== memberRecord.customerId && m.mobile !== memberRecord.mobile), 
+      ...currentEnrolled.filter((m: any) => m.customerId !== memberRecord.customerId && m.mobile !== memberRecord.mobile), 
       memberRecord
     ];
     const updatedGroup = { 
-      ...selectedGroup, 
+      ...currentGroup, 
       filled: updatedMembers.length,
       enrolledMembers: updatedMembers
     };
     setSelectedGroup(updatedGroup);
     
-    const updatedGroups = chitGroups.map(g => (g.id === selectedGroup.id || g.name === selectedGroup.name) ? updatedGroup : g);
+    const updatedGroups = allGroups.map((g: any) => (g.id === selectedGroup.id || g.name === selectedGroup.name) ? updatedGroup : g);
     setChitGroups(updatedGroups);
     localStorage.setItem('mockChitGroups', JSON.stringify(updatedGroups));
 
-    // 4. Save to persistent chitGroupMemberships table in localStorage
+    // 3. Save to persistent chitGroupMemberships table in localStorage
     const allMemberships = JSON.parse(localStorage.getItem('chitGroupMemberships') || '[]');
     const newMemberships = [
-      ...allMemberships.filter((m: any) => !(m.groupId === selectedGroup.id && (m.customerId === memberRecord.customerId || m.mobile === memberRecord.mobile))), 
+      ...allMemberships.filter((m: any) => !( (m.groupId === selectedGroup.id || m.groupName === selectedGroup.name) && (m.customerId === memberRecord.customerId || m.mobile === memberRecord.mobile) )), 
       memberRecord
     ];
     localStorage.setItem('chitGroupMemberships', JSON.stringify(newMemberships));
 
-    // 5. Dispatch storage event so customer dashboard / other tabs update immediately
+    // 4. Dispatch storage event so customer dashboard / other tabs update immediately
     window.dispatchEvent(new Event('storage'));
 
-    // 6. Persist to backend MongoDB
+    // 5. Persist to backend MongoDB
     const targetId = foundCustomer.mongoId || foundCustomer.id;
     if (targetId) {
       fetchClient(`/customers/${targetId}`, {
         method: 'PATCH',
         body: JSON.stringify({
-          chits: updatedCustomer.chits,
-          pending: updatedCustomer.pending,
+          chits: [...(foundCustomer.chits || []), newChit],
+          pending: (Number(foundCustomer.pending) || 0) + installment,
         })
       }).catch(err => console.warn('Could not sync chit to backend:', err));
     }
 
+    alert(`Customer ${memberRecord.customerName} enrolled successfully into ${selectedGroup.name || selectedGroup.id}! (Ticket #${ticketNumber})`);
     setIsAddCustomerModalOpen(false);
     setSearchMobile('');
     setFoundCustomer(null);
@@ -278,23 +321,28 @@ export const AdminDashboard = () => {
 
   // If a group is selected, show its customers
   if (selectedGroup) {
-    // Resolve all enrolled customers from group.enrolledMembers, chitGroupMemberships, and customers state
+    const freshChitGroups = JSON.parse(localStorage.getItem('mockChitGroups') || '[]');
+    const activeGroup = freshChitGroups.find((g: any) => g.id === selectedGroup.id || g.name === selectedGroup.name) || selectedGroup;
+
+    // Resolve all enrolled customers from group.enrolledMembers, chitGroupMemberships, and localStorage customers
     const memberships = JSON.parse(localStorage.getItem('chitGroupMemberships') || '[]');
+    const allCustomersFromDisk = JSON.parse(localStorage.getItem('mockCustomers') || '[]');
+
     const groupMembersFromStore = memberships.filter((m: any) => 
-      m.groupId === selectedGroup.id || 
-      m.groupId === selectedGroup.code || 
-      (selectedGroup.name && m.groupName === selectedGroup.name) ||
-      (selectedGroup.name && m.groupId === selectedGroup.name)
+      m.groupId === activeGroup.id || 
+      m.groupId === activeGroup.code || 
+      (activeGroup.name && m.groupName === activeGroup.name) ||
+      (activeGroup.name && m.groupId === activeGroup.name)
     );
 
-    const directMembers = Array.isArray(selectedGroup.enrolledMembers) ? selectedGroup.enrolledMembers : [];
+    const directMembers = Array.isArray(activeGroup.enrolledMembers) ? activeGroup.enrolledMembers : [];
 
-    const enrolledFromCustomers = customers.filter(c => 
+    const enrolledFromCustomers = allCustomersFromDisk.filter((c: any) => 
       c.chits?.some((ch: any) => 
-        ch.groupId === selectedGroup.id || 
-        ch.groupId === selectedGroup.code || 
-        (selectedGroup.name && ch.groupName === selectedGroup.name) ||
-        (selectedGroup.name && ch.groupId === selectedGroup.name)
+        ch.groupId === activeGroup.id || 
+        ch.groupId === activeGroup.code || 
+        (activeGroup.name && ch.groupName === activeGroup.name) ||
+        (activeGroup.name && ch.groupId === activeGroup.name)
       )
     );
 
@@ -302,21 +350,26 @@ export const AdminDashboard = () => {
     const customerMap = new Map<string, any>();
 
     directMembers.forEach((m: any) => {
-      const key = m.customerId || m.mobile || m.phone;
+      const cleanMPhone = (m.mobile || m.phone || '').replace(/\D/g, '');
+      const key = m.customerId || cleanMPhone || m.mobile || m.ticketNumber;
       if (key) {
+        const fullCust = allCustomersFromDisk.find((c: any) => 
+          c.id === m.customerId || (cleanMPhone && (c.mobile || c.phone || '').replace(/\D/g, '') === cleanMPhone)
+        );
         customerMap.set(key, {
-          id: m.customerId,
-          name: m.customerName,
-          mobile: m.mobile || m.phone,
-          phone: m.mobile || m.phone,
-          pending: m.pending,
-          totalPaid: m.totalPaid,
+          id: m.customerId || cleanMPhone || 'CUST',
+          name: fullCust?.name || fullCust?.fullName || m.customerName || 'Customer',
+          mobile: m.mobile || m.phone || fullCust?.mobile || '—',
+          phone: m.mobile || m.phone || fullCust?.phone || '—',
+          pending: m.pending ?? fullCust?.pending ?? 0,
+          totalPaid: m.totalPaid ?? fullCust?.totalPaid ?? 0,
           chits: [{
-            groupId: selectedGroup.id,
-            chitValue: m.chitValue,
-            monthlyInstallment: m.monthlyInstallment,
+            groupId: activeGroup.id,
+            groupName: activeGroup.name,
+            chitValue: m.chitValue || activeGroup.value,
+            monthlyInstallment: m.monthlyInstallment || (Number(activeGroup.value) * 0.05),
             ticketNumber: m.ticketNumber,
-            paymentStatus: m.paymentStatus,
+            paymentStatus: m.paymentStatus || 'DUE',
             dueDate: m.dueDate
           }]
         });
@@ -324,21 +377,26 @@ export const AdminDashboard = () => {
     });
 
     groupMembersFromStore.forEach((m: any) => {
-      const key = m.customerId || m.mobile || m.phone;
+      const cleanMPhone = (m.mobile || m.phone || '').replace(/\D/g, '');
+      const key = m.customerId || cleanMPhone || m.mobile || m.ticketNumber;
       if (key && !customerMap.has(key)) {
+        const fullCust = allCustomersFromDisk.find((c: any) => 
+          c.id === m.customerId || (cleanMPhone && (c.mobile || c.phone || '').replace(/\D/g, '') === cleanMPhone)
+        );
         customerMap.set(key, {
-          id: m.customerId,
-          name: m.customerName,
-          mobile: m.mobile || m.phone,
-          phone: m.mobile || m.phone,
-          pending: m.pending,
-          totalPaid: m.totalPaid,
+          id: m.customerId || cleanMPhone || 'CUST',
+          name: fullCust?.name || fullCust?.fullName || m.customerName || 'Customer',
+          mobile: m.mobile || m.phone || fullCust?.mobile || '—',
+          phone: m.mobile || m.phone || fullCust?.phone || '—',
+          pending: m.pending ?? fullCust?.pending ?? 0,
+          totalPaid: m.totalPaid ?? fullCust?.totalPaid ?? 0,
           chits: [{
-            groupId: selectedGroup.id,
-            chitValue: m.chitValue,
-            monthlyInstallment: m.monthlyInstallment,
+            groupId: activeGroup.id,
+            groupName: activeGroup.name,
+            chitValue: m.chitValue || activeGroup.value,
+            monthlyInstallment: m.monthlyInstallment || (Number(activeGroup.value) * 0.05),
             ticketNumber: m.ticketNumber,
-            paymentStatus: m.paymentStatus,
+            paymentStatus: m.paymentStatus || 'DUE',
             dueDate: m.dueDate
           }]
         });
@@ -346,10 +404,24 @@ export const AdminDashboard = () => {
     });
 
     enrolledFromCustomers.forEach((c: any) => {
-      const key = c.id || c.customerCode || c.mobile || c.phone;
+      const cleanCPhone = (c.mobile || c.phone || '').replace(/\D/g, '');
+      const key = c.id || cleanCPhone || c.mobile;
       if (key) {
+        const matchedChit = c.chits?.find((ch: any) => 
+          ch.groupId === activeGroup.id || 
+          ch.groupId === activeGroup.code || 
+          ch.groupName === activeGroup.name || 
+          ch.groupId === activeGroup.name
+        ) || c.chits?.[0];
+        
         const existing = customerMap.get(key);
-        customerMap.set(key, { ...existing, ...c, chits: (c.chits && c.chits.length > 0) ? c.chits : existing?.chits });
+        customerMap.set(key, {
+          ...existing,
+          ...c,
+          name: c.name || c.fullName || existing?.name || 'Customer',
+          mobile: c.mobile || c.phone || existing?.mobile || '—',
+          chits: matchedChit ? [matchedChit] : existing?.chits
+        });
       }
     });
 
@@ -366,16 +438,27 @@ export const AdminDashboard = () => {
               <ArrowLeft className="w-5 h-5 text-neutral-600" />
             </button>
             <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-primary-900 tracking-tight">{selectedGroup.name || selectedGroup.id}</h1>
+              <h1 className="text-xl sm:text-2xl font-bold text-primary-900 tracking-tight">{activeGroup.name || activeGroup.id}</h1>
               <p className="text-xs sm:text-sm text-neutral-500">
-                {selectedCategory?.type} • {formatCurrency(selectedCategory?.value || 0)} • {groupCustomers.length} Customers Enrolled
+                {selectedCategory?.type} • {formatCurrency(selectedCategory?.value || activeGroup.value || 0)} • {groupCustomers.length} Customers Enrolled
               </p>
             </div>
           </div>
           <button 
             className="btn-primary flex items-center justify-center text-sm w-full sm:w-auto"
             onClick={() => {
-              setCustomChitValue(selectedGroup?.value?.toString() || '');
+              const defaultVal = activeGroup?.value?.toString() || selectedCategory?.value?.toString() || '100000';
+              setCustomChitValue(defaultVal);
+              const d = new Date();
+              d.setDate(15);
+              if (d.getTime() < Date.now()) {
+                d.setMonth(d.getMonth() + 1);
+              }
+              setDueDate(d.toISOString().split('T')[0]);
+              setSearchMobile('');
+              setFoundCustomer(null);
+              const diskCusts = JSON.parse(localStorage.getItem('mockCustomers') || '[]');
+              setSearchSuggestions(diskCusts.slice(0, 5));
               setIsAddCustomerModalOpen(true);
             }}
           >
@@ -398,15 +481,20 @@ export const AdminDashboard = () => {
               <tbody className="bg-white divide-y divide-neutral-100 whitespace-nowrap">
                 {groupCustomers.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="px-6 py-12 text-center text-neutral-500">No customers enrolled in this group yet.</td>
+                    <td colSpan={5} className="px-6 py-12 text-center text-neutral-500">No customers enrolled in this group yet. Click "+ Add Customer" above to enroll.</td>
                   </tr>
                 ) : (
                   groupCustomers.map((c) => {
-                    const chit = c.chits?.find((ch: any) => (ch.groupId === selectedGroup.id || ch.groupId === selectedGroup.code));
+                    const chit = c.chits?.find((ch: any) => (
+                      ch.groupId === activeGroup.id || 
+                      ch.groupId === activeGroup.code ||
+                      ch.groupId === activeGroup.name ||
+                      (activeGroup.name && ch.groupName === activeGroup.name)
+                    )) || c.chits?.[0];
                     
                     // Verify if payment confirmation exists in ledger or chit record
                     const ledger = JSON.parse(localStorage.getItem('ledgerTransactions') || '[]');
-                    const groupId = selectedGroup.id || selectedGroup.code;
+                    const groupId = activeGroup.id || activeGroup.code;
                     const hasConfirmedPayment = 
                       chit?.paymentStatus === 'PAID' || 
                       (Number(chit?.totalPaid) > 0) || 
@@ -419,7 +507,7 @@ export const AdminDashboard = () => {
 
                     return (
                       <tr 
-                        key={c.id} 
+                        key={c.id || c.mobile} 
                         className="hover:bg-neutral-50 transition-colors cursor-pointer"
                         onClick={() => navigate(`/admin/customers/${c.id}`)}
                       >
@@ -428,8 +516,8 @@ export const AdminDashboard = () => {
                           <div className="text-xs text-neutral-500 font-mono mt-0.5">{c.id}</div>
                         </td>
                         <td className="px-6 py-4 text-neutral-600 font-medium">{c.mobile || c.phone}</td>
-                        <td className="px-6 py-4 text-neutral-600 font-bold">{formatCurrency(chit?.chitValue || 0)}</td>
-                        <td className="px-6 py-4 text-neutral-600 font-bold">{formatCurrency(chit?.monthlyInstallment || 0)}</td>
+                        <td className="px-6 py-4 text-neutral-600 font-bold">{formatCurrency(chit?.chitValue || activeGroup.value || 0)}</td>
+                        <td className="px-6 py-4 text-neutral-600 font-bold">{formatCurrency(chit?.monthlyInstallment || (Number(activeGroup.value || 0) * 0.05))}</td>
                         <td className="px-6 py-4">
                           <span className={`inline-flex px-2 py-1 font-bold text-xs uppercase rounded-full ${hasConfirmedPayment ? 'bg-success-light text-success' : 'bg-danger-light text-danger'}`}>
                             {hasConfirmedPayment ? 'Paid' : 'Dues Pending'}
@@ -445,82 +533,136 @@ export const AdminDashboard = () => {
         </div>
 
         {isAddCustomerModalOpen && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-white p-6 rounded-xl shadow-lg w-full max-w-md">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-bold text-primary-900">Enroll Customer</h2>
-                <button onClick={() => setIsAddCustomerModalOpen(false)} className="text-neutral-500 hover:text-neutral-700">
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white p-6 rounded-2xl shadow-xl w-full max-w-lg border border-neutral-200">
+              <div className="flex justify-between items-center mb-4 pb-3 border-b border-neutral-100">
+                <div>
+                  <h2 className="text-lg font-bold text-primary-900">Enroll Customer</h2>
+                  <p className="text-xs text-neutral-500">Group: {activeGroup.name || activeGroup.id}</p>
+                </div>
+                <button onClick={() => setIsAddCustomerModalOpen(false)} className="text-neutral-400 hover:text-neutral-700 p-1">
                   <X className="w-5 h-5" />
                 </button>
               </div>
               
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-1">Search Customer (Mobile or ID)</label>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 mb-1.5">
+                    Search Customer (Mobile, Name, or ID) *
+                  </label>
                   <input 
                     type="text"
-                    className="w-full border border-neutral-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                    placeholder="Enter mobile number"
+                    className="w-full border border-neutral-300 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 font-medium"
+                    placeholder="Type 10-digit mobile number, name, or customer ID"
                     value={searchMobile}
                     onChange={(e) => handleSearchCustomer(e.target.value)}
                   />
+                  
                   {foundCustomer ? (
-                    <div className="mt-3 p-3 bg-success-light border border-success/30 rounded-lg flex items-start space-x-3 animate-in fade-in slide-in-from-top-2 duration-200">
-                      <div className="bg-white p-1.5 rounded-full shadow-sm shrink-0 mt-0.5">
-                        <CheckCircle2 className="w-5 h-5 text-success" />
+                    <div className="mt-3 p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-bold shrink-0">
+                          ✓
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-emerald-950">{foundCustomer.name}</p>
+                          <p className="text-xs text-emerald-700 font-mono">Mobile: {foundCustomer.mobile || foundCustomer.phone} · ID: {foundCustomer.id}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-sm font-bold text-neutral-900">{foundCustomer.name}</p>
-                        <p className="text-xs text-neutral-600 font-mono mt-0.5">{foundCustomer.id}</p>
-                        <p className="text-xs text-neutral-500 mt-1">Mobile: {foundCustomer.phone || foundCustomer.mobile}</p>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => { setFoundCustomer(null); setSearchMobile(''); }}
+                        className="text-xs font-bold text-emerald-800 underline hover:text-emerald-950"
+                      >
+                        Change
+                      </button>
                     </div>
-                  ) : searchMobile.length >= 10 ? (
-                    <p className="mt-2 text-sm text-danger font-medium animate-in fade-in">No customer found.</p>
-                  ) : null}
+                  ) : (
+                    searchSuggestions.length > 0 && (
+                      <div className="mt-2 border border-neutral-200 rounded-lg max-h-40 overflow-y-auto divide-y divide-neutral-100 bg-neutral-50/50">
+                        <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider px-3 py-1.5 bg-neutral-100">
+                          Select from Registered Customers
+                        </p>
+                        {searchSuggestions.map((c: any) => (
+                          <div 
+                            key={c.id || c.mobile}
+                            onClick={() => {
+                              setFoundCustomer(c);
+                              setSearchMobile(c.mobile || c.phone || c.name);
+                            }}
+                            className="px-3 py-2 hover:bg-white hover:text-primary-700 cursor-pointer flex justify-between items-center transition-colors"
+                          >
+                            <div>
+                              <p className="text-xs font-bold text-neutral-800">{c.name || c.fullName}</p>
+                              <p className="text-[11px] text-neutral-500 font-mono">Mobile: {c.mobile || c.phone} · ID: {c.id}</p>
+                            </div>
+                            <span className="text-[11px] font-bold text-primary-600 bg-primary-50 px-2 py-0.5 rounded border border-primary-200">
+                              Select
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  )}
+
+                  {!foundCustomer && searchMobile.length >= 3 && searchSuggestions.length === 0 && (
+                    <p className="mt-2 text-xs text-rose-600 font-medium">
+                      No customer found matching "{searchMobile}". Please check the number or register the customer first.
+                    </p>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 mb-1.5">
+                      Chit Value (₹)
+                    </label>
+                    <input 
+                      type="number"
+                      className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      value={customChitValue}
+                      onChange={(e) => setCustomChitValue(e.target.value)}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 mb-1.5">
+                      Monthly Installment (5%)
+                    </label>
+                    <input 
+                      type="text"
+                      className="w-full bg-neutral-100 border border-neutral-300 rounded-lg px-3 py-2 text-sm text-neutral-700 font-bold"
+                      value={formatCurrency(Number(customChitValue || 0) * 0.05)}
+                      disabled
+                    />
+                  </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-1">Chit Value (₹)</label>
-                  <input 
-                    type="number"
-                    className="w-full border border-neutral-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                    value={customChitValue}
-                    onChange={(e) => setCustomChitValue(e.target.value)}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-1">Monthly Installment (5%)</label>
-                  <input 
-                    type="text"
-                    className="w-full bg-neutral-50 border border-neutral-300 rounded-md px-3 py-2 text-sm text-neutral-500 font-bold"
-                    value={formatCurrency(Number(customChitValue) * 0.05)}
-                    disabled
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-1">Due Date</label>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 mb-1.5">
+                    First Due Date
+                  </label>
                   <input 
                     type="date"
-                    className="w-full border border-neutral-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    required
+                    className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary-500"
                     value={dueDate}
                     onChange={(e) => setDueDate(e.target.value)}
                   />
+                  <p className="text-[11px] text-neutral-500 mt-1">Defaults to the 15th of the month.</p>
                 </div>
 
-                <div className="flex justify-end space-x-3 mt-6">
+                <div className="flex justify-end space-x-3 pt-3 border-t border-neutral-100">
                   <button 
-                    className="px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-100 rounded-md transition-colors"
+                    className="px-4 py-2 text-xs font-bold text-neutral-600 hover:bg-neutral-100 rounded-lg transition-colors border border-neutral-200"
                     onClick={() => setIsAddCustomerModalOpen(false)}
                   >
                     Cancel
                   </button>
                   <button 
-                    className="btn-primary"
+                    className="px-5 py-2 text-xs font-bold text-white bg-primary-600 hover:bg-primary-700 rounded-lg shadow-sm transition-colors disabled:opacity-50"
                     onClick={handleEnrollCustomer}
-                    disabled={!foundCustomer || !dueDate}
+                    disabled={!foundCustomer}
                   >
                     Enroll Customer
                   </button>

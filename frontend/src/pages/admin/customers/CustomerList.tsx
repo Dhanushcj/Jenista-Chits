@@ -54,10 +54,18 @@ export const CustomerList = () => {
               status: c.status || 'ACTIVE'
             };
           });
-          setAllCustomers(mapped);
-          setFilteredCustomers(mapped);
+          const localOnly = localSaved.filter((lc: any) => 
+            !res.data.some((item: any) => 
+              (item._id && lc.mongoId === item._id) || 
+              (item.customerCode && lc.id === item.customerCode) ||
+              (item.phone && (lc.mobile === item.phone || lc.phone === item.phone))
+            )
+          );
+          const combined = [...mapped, ...localOnly];
+          setAllCustomers(combined);
+          setFilteredCustomers(combined);
           setHasSearched(true);
-          localStorage.setItem('mockCustomers', JSON.stringify(mapped));
+          localStorage.setItem('mockCustomers', JSON.stringify(combined));
         }
       } catch (err) {
         console.warn('Could not fetch customers from backend:', err);
