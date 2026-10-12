@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
-import { Layers, CreditCard, TrendingUp, Bell, History, Calendar, ArrowRight, Copy, Table } from 'lucide-react';
+import { Layers, CreditCard, TrendingUp, Bell, History, Calendar, ArrowRight, Copy, Table, Gavel } from 'lucide-react';
 import { formatCurrency, formatDate } from '../../utils/format';
 import { useAuth } from '../../store/AuthContext';
 import { fetchClient } from '../../api/client';
 import { FixedPlanSchedule } from '../../components/customer/FixedPlanSchedule';
+import { AuctionPlanSchedule } from '../../components/customer/AuctionPlanSchedule';
 
 export const CustomerDashboard = () => {
   const { user, logout } = useAuth();
-  const [activeTab, setActiveTab] = useState<'myChits' | 'fixedPlanChart'>('myChits');
+  const [activeTab, setActiveTab] = useState<'myChits' | 'fixedPlanChart' | 'auctionPlanChart'>('myChits');
   const [activeChits, setActiveChits] = useState(0);
   const [totalInvested, setTotalInvested] = useState(0);
   const [myChits, setMyChits] = useState<any[]>([]);
@@ -120,10 +121,10 @@ export const CustomerDashboard = () => {
           </div>
 
           {/* Navigation Tabs */}
-          <div className="flex border-b border-neutral-200 space-x-2">
+          <div className="flex border-b border-neutral-200 space-x-2 overflow-x-auto scrollbar-none">
             <button
               onClick={() => setActiveTab('myChits')}
-              className={`pb-3 px-4 font-bold text-sm border-b-2 flex items-center transition-colors ${
+              className={`pb-3 px-4 font-bold text-sm border-b-2 flex items-center whitespace-nowrap transition-colors ${
                 activeTab === 'myChits'
                   ? 'border-primary-900 text-primary-900'
                   : 'border-transparent text-neutral-500 hover:text-neutral-700'
@@ -134,41 +135,79 @@ export const CustomerDashboard = () => {
             </button>
             <button
               onClick={() => setActiveTab('fixedPlanChart')}
-              className={`pb-3 px-4 font-bold text-sm border-b-2 flex items-center transition-colors ${
+              className={`pb-3 px-4 font-bold text-sm border-b-2 flex items-center whitespace-nowrap transition-colors ${
                 activeTab === 'fixedPlanChart'
                   ? 'border-emerald-700 text-emerald-800'
                   : 'border-transparent text-neutral-500 hover:text-neutral-700'
               }`}
             >
               <Table className="w-4 h-4 mr-2" />
-              Fixed Plan Schedule (20 Months Chart)
+              Fixed Plan Schedule (20M)
               <span className="ml-2 px-2 py-0.5 text-[10px] bg-emerald-100 text-emerald-800 rounded-full uppercase tracking-wider font-extrabold">
-                Official Chart
+                Fixed Scheme
+              </span>
+            </button>
+            <button
+              onClick={() => setActiveTab('auctionPlanChart')}
+              className={`pb-3 px-4 font-bold text-sm border-b-2 flex items-center whitespace-nowrap transition-colors ${
+                activeTab === 'auctionPlanChart'
+                  ? 'border-purple-700 text-purple-900'
+                  : 'border-transparent text-neutral-500 hover:text-neutral-700'
+              }`}
+            >
+              <Gavel className="w-4 h-4 mr-2" />
+              Auction Plan Schedule (20M)
+              <span className="ml-2 px-2 py-0.5 text-[10px] bg-purple-100 text-purple-900 rounded-full uppercase tracking-wider font-extrabold">
+                Auction Scheme
               </span>
             </button>
           </div>
 
           {activeTab === 'fixedPlanChart' ? (
             <FixedPlanSchedule />
+          ) : activeTab === 'auctionPlanChart' ? (
+            <AuctionPlanSchedule />
           ) : (
             <>
-              {/* Quick Prompt to Fixed Plan Chart */}
-              <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-primary-50 border border-emerald-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold shrink-0">
-                    <Table className="w-5 h-5" />
+              {/* Quick Prompts to Schemes */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Fixed Plan Card */}
+                <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-primary-50 border border-emerald-200 rounded-xl p-4 flex items-center justify-between gap-3 shadow-sm">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-emerald-700 text-white flex items-center justify-center font-bold shrink-0">
+                      <Table className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-emerald-950">Fixed Chit Plans (ரூ. 1L - 10L)</h4>
+                      <p className="text-xs text-emerald-700">Fixed monthly dues & guaranteed prize schedule.</p>
+                    </div>
                   </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-emerald-950">20 Months Fixed Chit Plans Available (ரூ. 1,00,000 to ரூ. 10,00,000)</h4>
-                    <p className="text-xs text-emerald-700">Check full month-by-month payout and due schedule with official guidelines.</p>
-                  </div>
+                  <button
+                    onClick={() => setActiveTab('fixedPlanChart')}
+                    className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 shadow-sm shrink-0"
+                  >
+                    View <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
                 </div>
-                <button
-                  onClick={() => setActiveTab('fixedPlanChart')}
-                  className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold px-4 py-2 rounded-lg transition-colors flex items-center gap-1 shadow-sm shrink-0"
-                >
-                  View Schedule <ArrowRight className="w-3.5 h-3.5" />
-                </button>
+
+                {/* Auction Plan Card */}
+                <div className="bg-gradient-to-r from-purple-50 via-indigo-50 to-purple-50 border border-purple-200 rounded-xl p-4 flex items-center justify-between gap-3 shadow-sm">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-purple-800 text-white flex items-center justify-center font-bold shrink-0">
+                      <Gavel className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-purple-950">Auction Chit Plans (ரூ. 1L - 10L)</h4>
+                      <p className="text-xs text-purple-700">Reverse bidding, max 30% discount & monthly dividends.</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setActiveTab('auctionPlanChart')}
+                    className="bg-purple-800 hover:bg-purple-900 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 shadow-sm shrink-0"
+                  >
+                    View <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
