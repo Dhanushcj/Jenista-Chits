@@ -38,9 +38,9 @@ export const ActionLayout = ({
   };
 
   return (
-    <div className="flex flex-col h-full w-full bg-neutral-50 overflow-hidden">
+    <div className="flex flex-col h-full w-full bg-[#f0f4f9] overflow-hidden">
       {/* Top Action Bar */}
-      <div className="px-4 py-2 border-b border-neutral-200 bg-neutral-50 flex flex-wrap gap-4 items-center justify-between shrink-0">
+      <div className="px-4 py-2 border-b border-neutral-200 bg-[#f0f4f9] flex flex-wrap gap-4 items-center justify-between shrink-0">
         <h2 className="text-lg font-bold text-primary-900">{title}</h2>
         <div className="flex flex-wrap gap-2">
           {allowedActions.includes('ADD') && (

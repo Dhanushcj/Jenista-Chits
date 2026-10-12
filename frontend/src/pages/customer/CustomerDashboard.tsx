@@ -110,8 +110,74 @@ export const CustomerDashboard = () => {
     };
   }, [user]);
 
-  const handlePayNow = (groupId: string) => {
-    alert(`Redirecting to payment gateway for group ${groupId}...`);
+  const [paymentModalChit, setPaymentModalChit] = useState<any | null>(null);
+  const [payAmount, setPayAmount] = useState<string>('');
+  const [payMode, setPayMode] = useState<'UPI' | 'Bank Transfer' | 'Cash'>('UPI');
+  const [payRefNo, setPayRefNo] = useState<string>('');
+  const [paySubmitting, setPaySubmitting] = useState(false);
+  const [paySuccessMsg, setPaySuccessMsg] = useState('');
+
+  const [pendingRequests, setPendingRequests] = useState<any[]>([]);
+
+  useEffect(() => {
+    const checkRequests = () => {
+      const allReqs = JSON.parse(localStorage.getItem('paymentRequests') || '[]');
+      const userReqs = allReqs.filter((r: any) => r.customerId === user?.id || (user?.phone && r.mobile === user?.phone));
+      setPendingRequests(userReqs);
+    };
+    checkRequests();
+    window.addEventListener('storage', checkRequests);
+    const t = setInterval(checkRequests, 4000);
+    return () => {
+      window.removeEventListener('storage', checkRequests);
+      clearInterval(t);
+    };
+  }, [user]);
+
+  const handlePayNow = (chit: any) => {
+    setPaymentModalChit(chit);
+    setPayAmount(String(chit.monthlyInstallment || 15000));
+    setPayMode('UPI');
+    setPayRefNo('');
+    setPaySuccessMsg('');
+  };
+
+  const handleSubmitPayment = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!payRefNo.trim()) {
+      alert('Please enter your Transaction / UTR / Reference ID for verification.');
+      return;
+    }
+    setPaySubmitting(true);
+    const newReq = {
+      id: `PAY-${Date.now().toString().slice(-6)}`,
+      customerId: user?.id || 'CUST',
+      customerName: user?.name || 'Customer',
+      mobile: user?.phone || '',
+      groupId: paymentModalChit?.groupId,
+      groupName: paymentModalChit?.groupName || paymentModalChit?.groupId,
+      ticketNumber: paymentModalChit?.ticketNumber || '',
+      amount: Number(payAmount),
+      paymentMode: payMode,
+      referenceNo: payRefNo.trim(),
+      submittedAt: new Date().toISOString(),
+      status: 'PENDING_VERIFICATION',
+      remarks: `Paid via ${payMode}`
+    };
+
+    const existingReqs = JSON.parse(localStorage.getItem('paymentRequests') || '[]');
+    const updatedReqs = [newReq, ...existingReqs];
+    localStorage.setItem('paymentRequests', JSON.stringify(updatedReqs));
+    window.dispatchEvent(new Event('storage'));
+
+    setTimeout(() => {
+      setPaySubmitting(false);
+      setPaySuccessMsg('Payment request submitted successfully! Admin will verify and update your receipt.');
+      setTimeout(() => {
+        setPaymentModalChit(null);
+        setPaySuccessMsg('');
+      }, 2000);
+    }, 400);
   };
 
   return (
@@ -357,12 +423,28 @@ export const CustomerDashboard = () => {
                         <p className="text-sm font-medium text-neutral-800">{formatCurrency(chit.monthlyInstallment || 15000)}</p>
                       </div>
                       <div className="text-right">
-                        <button 
-                          onClick={() => handlePayNow(chit.groupId)}
-                          className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm transition-colors flex items-center justify-center w-full md:w-auto ml-auto"
-                        >
-                          Pay Now <ArrowRight className="w-4 h-4 ml-1" />
-                        </button>
+                        {(() => {
+                          const hasPending = pendingRequests.some(r => r.groupId === chit.groupId && r.status === 'PENDING_VERIFICATION');
+                          if (hasPending) {
+                            return (
+                              <div className="flex flex-col items-end">
+                                <span className="inline-flex items-center px-3 py-1.5 bg-amber-50 text-amber-700 font-bold text-xs rounded-lg border border-amber-200">
+                                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse mr-1.5"></span>
+                                  Awaiting Admin Verification
+                                </span>
+                                <span className="text-[11px] text-neutral-400 mt-1">Payment under review</span>
+                              </div>
+                            );
+                          }
+                          return (
+                            <button 
+                              onClick={() => handlePayNow(chit)}
+                              className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm transition-colors flex items-center justify-center w-full md:w-auto ml-auto"
+                            >
+                              Pay Now <ArrowRight className="w-4 h-4 ml-1" />
+                            </button>
+                          );
+                        })()}
                       </div>
                     </div>
                   </div>
@@ -414,6 +496,123 @@ export const CustomerDashboard = () => {
           )}
         </div>
       </div>
+
+      {/* Customer Payment Request Submission Modal */}
+      {paymentModalChit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl border border-neutral-200 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-150">
+            <div className="px-6 py-4 bg-primary-900 text-white flex justify-between items-center">
+              <div>
+                <h3 className="font-bold text-lg">Submit Chit Payment</h3>
+                <p className="text-xs text-primary-200 mt-0.5">
+                  Group: {paymentModalChit.groupName || paymentModalChit.groupId} · Ticket #{paymentModalChit.ticketNumber}
+                </p>
+              </div>
+              <button 
+                onClick={() => setPaymentModalChit(null)} 
+                className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            {paySuccessMsg ? (
+              <div className="p-8 text-center space-y-3">
+                <div className="w-14 h-14 mx-auto rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-2xl font-bold">
+                  ✓
+                </div>
+                <h4 className="text-lg font-bold text-neutral-800">Payment Request Sent!</h4>
+                <p className="text-sm text-neutral-600">{paySuccessMsg}</p>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmitPayment} className="p-6 space-y-4">
+                <div className="p-4 bg-primary-50/60 rounded-xl border border-primary-100 flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-semibold text-primary-700 uppercase tracking-wider">Installment Due Amount</p>
+                    <p className="text-2xl font-black text-primary-900 mt-0.5">
+                      ₹{Number(payAmount || 0).toLocaleString('en-IN')}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-xs font-semibold px-2.5 py-1 bg-primary-100 text-primary-800 rounded-md">
+                      Monthly Due
+                    </span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-neutral-600 mb-1.5">
+                    Amount Paid (₹)
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    value={payAmount}
+                    onChange={(e) => setPayAmount(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-neutral-50 border border-neutral-300 rounded-lg text-sm font-semibold text-neutral-900 focus:bg-white focus:border-primary-600 focus:outline-none transition-colors"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-neutral-600 mb-1.5">
+                    Payment Method
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(['UPI', 'Bank Transfer', 'Cash'] as const).map(mode => (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => setPayMode(mode)}
+                        className={`py-2 px-3 text-xs font-bold rounded-lg border text-center transition-all ${
+                          payMode === mode
+                            ? 'bg-primary-900 text-white border-primary-900 shadow-sm'
+                            : 'bg-neutral-50 text-neutral-600 border-neutral-200 hover:bg-neutral-100'
+                        }`}
+                      >
+                        {mode}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-neutral-600 mb-1.5">
+                    Transaction / Reference ID (UTR / Receipt No.) <span className="text-danger">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. UTR1289471928 or Cash receipt slip"
+                    value={payRefNo}
+                    onChange={(e) => setPayRefNo(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-white border border-neutral-300 rounded-lg text-sm font-mono text-neutral-900 focus:border-primary-600 focus:outline-none transition-colors"
+                  />
+                  <p className="text-[11px] text-neutral-500 mt-1">
+                    Enter the UPI transaction UTR or bank reference ID so admin can verify and update receipt.
+                  </p>
+                </div>
+
+                <div className="pt-3 border-t border-neutral-100 flex items-center justify-end space-x-3">
+                  <button
+                    type="button"
+                    onClick={() => setPaymentModalChit(null)}
+                    className="px-4 py-2 border border-neutral-200 text-neutral-600 rounded-lg text-sm font-semibold hover:bg-neutral-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={paySubmitting}
+                    className="px-6 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-sm font-bold shadow-sm transition-colors disabled:opacity-50"
+                  >
+                    {paySubmitting ? 'Submitting...' : 'Submit for Verification'}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
