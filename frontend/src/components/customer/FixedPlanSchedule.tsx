@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Calendar, Eye, ShieldCheck, Award, Sparkles } from 'lucide-react';
+import { Calendar, Eye, ShieldCheck, Award } from 'lucide-react';
 
 interface MonthSchedule {
   month: number;
@@ -80,31 +80,6 @@ export const FixedPlanSchedule = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header Banner */}
-      <div className="bg-gradient-to-r from-emerald-800 via-teal-800 to-primary-900 text-white rounded-2xl p-6 md:p-8 shadow-lg relative overflow-hidden">
-        <div className="absolute top-0 right-0 -mt-10 -mr-10 w-44 h-44 bg-white/10 rounded-full blur-2xl"></div>
-        <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-xs font-bold tracking-wide uppercase mb-3">
-              <Sparkles className="w-3.5 h-3.5 text-amber-300" /> Official Schedule
-            </div>
-            <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight">
-              JENISTA CHITS SCHEDULE
-            </h2>
-            <p className="text-emerald-100 text-sm md:text-base mt-1 font-medium">
-              20 Months • 20 Members Fixed Plan Chart (ரூ. 1L to ரூ. 10L)
-            </p>
-          </div>
-          <button
-            onClick={() => setShowPosterModal(true)}
-            className="flex items-center gap-2 bg-white text-emerald-900 hover:bg-emerald-50 px-5 py-2.5 rounded-xl font-bold text-sm shadow-md transition-all shrink-0 hover:scale-[1.02]"
-          >
-            <Eye className="w-4 h-4 text-emerald-700" />
-            View Official Chart Image
-          </button>
-        </div>
-      </div>
-
       {/* Plan Category Quick Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
@@ -132,48 +107,57 @@ export const FixedPlanSchedule = () => {
         ))}
       </div>
 
-      {/* Filter Tabs */}
-      <div className="flex flex-wrap gap-2 items-center bg-white p-2 rounded-xl border border-neutral-200">
-        <span className="text-xs font-bold text-neutral-500 px-3">Filter Column:</span>
+      {/* Filter Tabs & Poster Action */}
+      <div className="flex flex-col sm:flex-row gap-2 sm:items-center justify-between bg-white p-2 rounded-xl border border-neutral-200">
+        <div className="flex flex-wrap gap-2 items-center">
+          <span className="text-xs font-bold text-neutral-500 px-3">Filter Column:</span>
+          <button
+            onClick={() => setSelectedPlan('all')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+              selectedPlan === 'all' ? 'bg-primary-900 text-white' : 'text-neutral-600 hover:bg-neutral-100'
+            }`}
+          >
+            All Plans
+          </button>
+          <button
+            onClick={() => setSelectedPlan('100000')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+              selectedPlan === '100000' ? 'bg-orange-600 text-white' : 'text-neutral-600 hover:bg-neutral-100'
+            }`}
+          >
+            ₹1,00,000
+          </button>
+          <button
+            onClick={() => setSelectedPlan('200000')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+              selectedPlan === '200000' ? 'bg-purple-600 text-white' : 'text-neutral-600 hover:bg-neutral-100'
+            }`}
+          >
+            ₹2,00,000
+          </button>
+          <button
+            onClick={() => setSelectedPlan('500000')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+              selectedPlan === '500000' ? 'bg-sky-600 text-white' : 'text-neutral-600 hover:bg-neutral-100'
+            }`}
+          >
+            ₹5,00,000
+          </button>
+          <button
+            onClick={() => setSelectedPlan('1000000')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+              selectedPlan === '1000000' ? 'bg-amber-600 text-white' : 'text-neutral-600 hover:bg-neutral-100'
+            }`}
+          >
+            ₹10,00,000
+          </button>
+        </div>
         <button
-          onClick={() => setSelectedPlan('all')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-            selectedPlan === 'all' ? 'bg-primary-900 text-white' : 'text-neutral-600 hover:bg-neutral-100'
-          }`}
+          onClick={() => setShowPosterModal(true)}
+          className="flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 px-3 py-1.5 rounded-lg font-bold text-xs transition-colors shrink-0 self-end sm:self-auto mr-1"
         >
-          All Plans
-        </button>
-        <button
-          onClick={() => setSelectedPlan('100000')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-            selectedPlan === '100000' ? 'bg-orange-600 text-white' : 'text-neutral-600 hover:bg-neutral-100'
-          }`}
-        >
-          ₹1,00,000
-        </button>
-        <button
-          onClick={() => setSelectedPlan('200000')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-            selectedPlan === '200000' ? 'bg-purple-600 text-white' : 'text-neutral-600 hover:bg-neutral-100'
-          }`}
-        >
-          ₹2,00,000
-        </button>
-        <button
-          onClick={() => setSelectedPlan('500000')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-            selectedPlan === '500000' ? 'bg-sky-600 text-white' : 'text-neutral-600 hover:bg-neutral-100'
-          }`}
-        >
-          ₹5,00,000
-        </button>
-        <button
-          onClick={() => setSelectedPlan('1000000')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-            selectedPlan === '1000000' ? 'bg-amber-600 text-white' : 'text-neutral-600 hover:bg-neutral-100'
-          }`}
-        >
-          ₹10,00,000
+          <Eye className="w-3.5 h-3.5 text-emerald-700" />
+          View Original Chart Image
         </button>
       </div>
 
