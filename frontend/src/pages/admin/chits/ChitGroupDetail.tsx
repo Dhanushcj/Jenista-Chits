@@ -65,11 +65,18 @@ export const ChitGroupDetail = () => {
     if (cust.chits) {
       cust.chits.forEach((chit: any) => {
         if (chit.groupId === (group.id || group.code)) {
+          const custName = chit.customerName || cust.name || cust.fullName || 'Customer';
           const existingIdx = groupMembers.findIndex(m => m.ticketNumber === chit.ticketNumber);
+          const memberData = { 
+            ...chit, 
+            customerName: custName,
+            customerId: cust.id, 
+            customerImage: cust.photoPreview || `https://ui-avatars.com/api/?name=${encodeURIComponent(custName)}&background=6366f1&color=fff&size=150` 
+          };
           if (existingIdx === -1) {
-            groupMembers.push({ ...chit, customerId: cust.id, customerImage: cust.photoPreview || `https://ui-avatars.com/api/?name=${encodeURIComponent(chit.customerName)}&background=6366f1&color=fff&size=150` });
+            groupMembers.push(memberData);
           } else {
-            groupMembers[existingIdx] = { ...chit, customerId: cust.id, customerImage: cust.photoPreview || `https://ui-avatars.com/api/?name=${encodeURIComponent(chit.customerName)}&background=6366f1&color=fff&size=150` };
+            groupMembers[existingIdx] = memberData;
           }
         }
       });

@@ -133,6 +133,7 @@ export const AdminDashboard = () => {
     const val = Number(customChitValue);
     if (!foundCustomer || !dueDate || !selectedGroup || isNaN(val) || val <= 0) return;
     
+    const installment = val * 0.05;
     const newChit = {
       groupId: selectedGroup.id,
       groupName: selectedGroup.name || selectedGroup.id,
@@ -141,10 +142,21 @@ export const AdminDashboard = () => {
       joinedAt: new Date().toISOString(),
       dueDate: dueDate,
       chitValue: val,
-      monthlyInstallment: val * 0.05
+      monthlyInstallment: installment,
+      paymentStatus: 'DUE',
+      totalPaid: 0,
+      paidAmount: 0,
+      pending: installment,
+      customerName: foundCustomer.name || foundCustomer.fullName,
+      customerId: foundCustomer.id
     };
 
-    const updatedCustomer = { ...foundCustomer, chits: [...(foundCustomer.chits || []), newChit] };
+    const updatedCustomer = { 
+      ...foundCustomer, 
+      pending: (Number(foundCustomer.pending) || 0) + installment,
+      totalPending: (Number(foundCustomer.totalPending) || 0) + installment,
+      chits: [...(foundCustomer.chits || []), newChit] 
+    };
     const updatedCustomers = customers.map(c => c.id === foundCustomer.id ? updatedCustomer : c);
     
     setCustomers(updatedCustomers);
@@ -216,7 +228,21 @@ export const AdminDashboard = () => {
                   </tr>
                 ) : (
                   groupCustomers.map((c) => {
-                    const chit = c.chits.find((ch: any) => (ch.groupId === selectedGroup.id || ch.groupId === selectedGroup.code));
+                    const chit = c.chits?.find((ch: any) => (ch.groupId === selectedGroup.id || ch.groupId === selectedGroup.code));
+                    
+                    // Verify if payment confirmation exists in ledger or chit record
+                    const ledger = JSON.parse(localStorage.getItem('ledgerTransactions') || '[]');
+                    const groupId = selectedGroup.id || selectedGroup.code;
+                    const hasConfirmedPayment = 
+                      chit?.paymentStatus === 'PAID' || 
+                      (Number(chit?.totalPaid) > 0) || 
+                      (Number(chit?.paidAmount) > 0) ||
+                      ledger.some((t: any) => 
+                        (t.type === 'CREDIT' || t.category === 'INSTALLMENT') && 
+                        ((t.reference?.includes(c.id) || t.reference?.includes(c.name) || t.description?.includes(c.name) || t.description?.includes(c.id) || t.customerName === c.name || t.customerId === c.id) &&
+                        (t.reference?.includes(groupId) || t.description?.includes(groupId) || t.groupId === groupId))
+                      );
+
                     return (
                       <tr 
                         key={c.id} 
@@ -231,8 +257,8 @@ export const AdminDashboard = () => {
                         <td className="px-6 py-4 text-neutral-600 font-bold">{formatCurrency(chit?.chitValue || 0)}</td>
                         <td className="px-6 py-4 text-neutral-600 font-bold">{formatCurrency(chit?.monthlyInstallment || 0)}</td>
                         <td className="px-6 py-4">
-                          <span className={`inline-flex px-2 py-1 font-bold text-xs uppercase rounded-full ${c.pending > 0 ? 'bg-danger-light text-danger' : 'bg-success-light text-success'}`}>
-                            {c.pending > 0 ? 'Dues Pending' : 'Paid'}
+                          <span className={`inline-flex px-2 py-1 font-bold text-xs uppercase rounded-full ${hasConfirmedPayment ? 'bg-success-light text-success' : 'bg-danger-light text-danger'}`}>
+                            {hasConfirmedPayment ? 'Paid' : 'Dues Pending'}
                           </span>
                         </td>
                       </tr>
