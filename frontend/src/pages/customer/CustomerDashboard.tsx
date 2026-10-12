@@ -38,14 +38,58 @@ export const CustomerDashboard = () => {
         }
 
         const customers = JSON.parse(localStorage.getItem('mockCustomers') || '[]');
-        const customer = customers.find((c: any) => 
-          c.id === user.id || 
-          c.mongoId === user.id || 
-          c.customerCode === user.id ||
-          (user.phone && (c.mobile === user.phone || c.phone === user.phone))
-        );
+        const cleanUserPhone = (user.phone || user.id || '').replace(/\D/g, '');
+        const customer = customers.find((c: any) => {
+          const cPhone = (c.mobile || c.phone || '').replace(/\D/g, '');
+          return (
+            c.id === user.id || 
+            c.mongoId === user.id || 
+            c.customerCode === user.id ||
+            (cleanUserPhone && cPhone === cleanUserPhone)
+          );
+        });
         
-        const finalChits = (chitsFromApi && chitsFromApi.length > 0) ? chitsFromApi : (customer?.chits || []);
+        let finalChits = (chitsFromApi && chitsFromApi.length > 0) ? chitsFromApi : (customer?.chits || []);
+
+        // Also check chitGroupMemberships and mockChitGroups enrolledMembers
+        const memberships = JSON.parse(localStorage.getItem('chitGroupMemberships') || '[]');
+        const userMemberships = memberships.filter((m: any) => {
+          const mPhone = (m.mobile || m.phone || '').replace(/\D/g, '');
+          return (
+            m.customerId === user.id || 
+            (cleanUserPhone && mPhone === cleanUserPhone)
+          );
+        });
+
+        const groups = JSON.parse(localStorage.getItem('mockChitGroups') || '[]');
+        const groupEnrolledChits: any[] = [];
+        groups.forEach((g: any) => {
+          if (Array.isArray(g.enrolledMembers)) {
+            g.enrolledMembers.forEach((m: any) => {
+              const mPhone = (m.mobile || m.phone || '').replace(/\D/g, '');
+              if (m.customerId === user.id || (cleanUserPhone && mPhone === cleanUserPhone)) {
+                groupEnrolledChits.push(m);
+              }
+            });
+          }
+        });
+
+        const allMemberChits = [...userMemberships, ...groupEnrolledChits];
+        allMemberChits.forEach((m: any) => {
+          if (!finalChits.some((ch: any) => ch.groupId === m.groupId)) {
+            finalChits = [...finalChits, {
+              groupId: m.groupId,
+              groupName: m.groupName || m.groupId,
+              ticketNumber: m.ticketNumber,
+              chitValue: m.chitValue,
+              monthlyInstallment: m.monthlyInstallment,
+              dueDate: m.dueDate,
+              paymentStatus: m.paymentStatus,
+              status: 'Active'
+            }];
+          }
+        });
+
         setMyChits(finalChits);
         setActiveChits(finalChits.length);
         setTotalInvested(totalInvestedFromApi ?? customer?.totalPaid ?? 0);

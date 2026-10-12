@@ -61,12 +61,42 @@ export const ChitGroupDetail = () => {
   const customers = JSON.parse(localStorage.getItem('mockCustomers') || '[]');
   
   const groupMembers: any[] = [];
+  const targetGroupId = group.id || group.code;
+
+  // 1. Direct enrolledMembers on group
+  if (Array.isArray(group.enrolledMembers)) {
+    group.enrolledMembers.forEach((m: any) => {
+      const custName = m.customerName || 'Customer';
+      groupMembers.push({
+        ...m,
+        customerName: custName,
+        customerImage: `https://ui-avatars.com/api/?name=${encodeURIComponent(custName)}&background=6366f1&color=fff&size=150`
+      });
+    });
+  }
+
+  // 2. Members from chitGroupMemberships
+  const memberships = JSON.parse(localStorage.getItem('chitGroupMemberships') || '[]');
+  memberships.forEach((m: any) => {
+    if (m.groupId === targetGroupId || m.groupName === group.name) {
+      if (!groupMembers.some(existing => existing.ticketNumber === m.ticketNumber || (existing.customerId && existing.customerId === m.customerId))) {
+        const custName = m.customerName || 'Customer';
+        groupMembers.push({
+          ...m,
+          customerName: custName,
+          customerImage: `https://ui-avatars.com/api/?name=${encodeURIComponent(custName)}&background=6366f1&color=fff&size=150`
+        });
+      }
+    }
+  });
+
+  // 3. Members from customers list
   customers.forEach((cust: any) => {
     if (cust.chits) {
       cust.chits.forEach((chit: any) => {
-        if (chit.groupId === (group.id || group.code)) {
+        if (chit.groupId === targetGroupId || chit.groupName === group.name) {
           const custName = chit.customerName || cust.name || cust.fullName || 'Customer';
-          const existingIdx = groupMembers.findIndex(m => m.ticketNumber === chit.ticketNumber);
+          const existingIdx = groupMembers.findIndex(m => m.ticketNumber === chit.ticketNumber || (m.customerId && m.customerId === cust.id));
           const memberData = { 
             ...chit, 
             customerName: custName,
@@ -76,7 +106,7 @@ export const ChitGroupDetail = () => {
           if (existingIdx === -1) {
             groupMembers.push(memberData);
           } else {
-            groupMembers[existingIdx] = memberData;
+            groupMembers[existingIdx] = { ...groupMembers[existingIdx], ...memberData };
           }
         }
       });

@@ -143,10 +143,29 @@ export const AdminDashboard = () => {
     if (!foundCustomer || !dueDate || !selectedGroup || isNaN(val) || val <= 0) return;
     
     const installment = val * 0.05;
+    const ticketNumber = ((selectedGroup.enrolledMembers?.length || selectedGroup.filled || 0) + 1).toString().padStart(3, '0');
+    
+    const memberRecord = {
+      customerId: foundCustomer.id || foundCustomer.customerCode,
+      customerName: foundCustomer.name || foundCustomer.fullName,
+      mobile: foundCustomer.mobile || foundCustomer.phone,
+      phone: foundCustomer.mobile || foundCustomer.phone,
+      ticketNumber: ticketNumber,
+      groupId: selectedGroup.id,
+      groupName: selectedGroup.name || selectedGroup.id,
+      chitValue: val,
+      monthlyInstallment: installment,
+      dueDate: dueDate,
+      joinedAt: new Date().toISOString(),
+      paymentStatus: 'DUE',
+      pending: installment,
+      totalPaid: 0,
+    };
+
     const newChit = {
       groupId: selectedGroup.id,
       groupName: selectedGroup.name || selectedGroup.id,
-      ticketNumber: ((selectedGroup.filled || 0) + 1).toString().padStart(3, '0'),
+      ticketNumber: ticketNumber,
       status: 'Active',
       joinedAt: new Date().toISOString(),
       dueDate: dueDate,
@@ -160,44 +179,86 @@ export const AdminDashboard = () => {
       customerId: foundCustomer.id
     };
 
+    const cleanMobile = (foundCustomer.mobile || foundCustomer.phone || '').replace(/\D/g, '');
+
     const updatedCustomer = { 
       ...foundCustomer, 
       pending: (Number(foundCustomer.pending) || 0) + installment,
       totalPending: (Number(foundCustomer.totalPending) || 0) + installment,
-      chits: [...(foundCustomer.chits || []), newChit],
-      activeChits: ((foundCustomer.chits || []).length + 1)
+      chits: [...(foundCustomer.chits || []).filter((ch: any) => ch.groupId !== selectedGroup.id), newChit],
+      activeChits: ((foundCustomer.chits || []).filter((ch: any) => ch.groupId !== selectedGroup.id).length + 1)
     };
 
-    // Update localStorage mockCustomers reliably
+    // 1. Update localStorage mockCustomers reliably
     const localSaved = JSON.parse(localStorage.getItem('mockCustomers') || '[]');
-    const updatedLocal = localSaved.map((c: any) => 
-      (c.id === foundCustomer.id || c.mongoId === foundCustomer.id || (foundCustomer.mongoId && c.mongoId === foundCustomer.mongoId))
-        ? updatedCustomer
-        : c
-    );
-    if (!updatedLocal.some((c: any) => c.id === foundCustomer.id || c.mongoId === foundCustomer.id)) {
+    let foundInLocal = false;
+    const updatedLocal = localSaved.map((c: any) => {
+      const cMobile = (c.mobile || c.phone || '').replace(/\D/g, '');
+      const isMatch = 
+        c.id === foundCustomer.id || 
+        c.mongoId === foundCustomer.id || 
+        (foundCustomer.mongoId && c.mongoId === foundCustomer.mongoId) ||
+        (cleanMobile && cMobile === cleanMobile);
+      if (isMatch) {
+        foundInLocal = true;
+        return updatedCustomer;
+      }
+      return c;
+    });
+    if (!foundInLocal) {
       updatedLocal.push(updatedCustomer);
     }
     localStorage.setItem('mockCustomers', JSON.stringify(updatedLocal));
 
-    const updatedCustomers = customers.map(c => 
-      (c.id === foundCustomer.id || c.mongoId === foundCustomer.id || (foundCustomer.mongoId && c.mongoId === foundCustomer.mongoId))
-        ? updatedCustomer
-        : c
-    );
+    // 2. Update React customers state
+    let foundInState = false;
+    const updatedCustomers = customers.map(c => {
+      const cMobile = (c.mobile || c.phone || '').replace(/\D/g, '');
+      const isMatch = 
+        c.id === foundCustomer.id || 
+        c.mongoId === foundCustomer.id || 
+        (foundCustomer.mongoId && c.mongoId === foundCustomer.mongoId) ||
+        (cleanMobile && cMobile === cleanMobile);
+      if (isMatch) {
+        foundInState = true;
+        return updatedCustomer;
+      }
+      return c;
+    });
+    if (!foundInState) {
+      updatedCustomers.push(updatedCustomer);
+    }
     setCustomers(updatedCustomers);
 
-    const updatedGroup = { ...selectedGroup, filled: (selectedGroup.filled || 0) + 1 };
+    // 3. Update enrolledMembers directly on selectedGroup & chitGroups
+    const existingMembers = Array.isArray(selectedGroup.enrolledMembers) ? selectedGroup.enrolledMembers : [];
+    const updatedMembers = [
+      ...existingMembers.filter((m: any) => m.customerId !== memberRecord.customerId && m.mobile !== memberRecord.mobile), 
+      memberRecord
+    ];
+    const updatedGroup = { 
+      ...selectedGroup, 
+      filled: updatedMembers.length,
+      enrolledMembers: updatedMembers
+    };
     setSelectedGroup(updatedGroup);
     
-    const updatedGroups = chitGroups.map(g => g.id === selectedGroup.id ? updatedGroup : g);
+    const updatedGroups = chitGroups.map(g => (g.id === selectedGroup.id || g.name === selectedGroup.name) ? updatedGroup : g);
     setChitGroups(updatedGroups);
     localStorage.setItem('mockChitGroups', JSON.stringify(updatedGroups));
 
-    // Dispatch storage event so customer dashboard / other tabs update immediately
+    // 4. Save to persistent chitGroupMemberships table in localStorage
+    const allMemberships = JSON.parse(localStorage.getItem('chitGroupMemberships') || '[]');
+    const newMemberships = [
+      ...allMemberships.filter((m: any) => !(m.groupId === selectedGroup.id && (m.customerId === memberRecord.customerId || m.mobile === memberRecord.mobile))), 
+      memberRecord
+    ];
+    localStorage.setItem('chitGroupMemberships', JSON.stringify(newMemberships));
+
+    // 5. Dispatch storage event so customer dashboard / other tabs update immediately
     window.dispatchEvent(new Event('storage'));
 
-    // Persist to backend MongoDB
+    // 6. Persist to backend MongoDB
     const targetId = foundCustomer.mongoId || foundCustomer.id;
     if (targetId) {
       fetchClient(`/customers/${targetId}`, {
@@ -217,7 +278,18 @@ export const AdminDashboard = () => {
 
   // If a group is selected, show its customers
   if (selectedGroup) {
-    const groupCustomers = customers.filter(c => 
+    // Resolve all enrolled customers from group.enrolledMembers, chitGroupMemberships, and customers state
+    const memberships = JSON.parse(localStorage.getItem('chitGroupMemberships') || '[]');
+    const groupMembersFromStore = memberships.filter((m: any) => 
+      m.groupId === selectedGroup.id || 
+      m.groupId === selectedGroup.code || 
+      (selectedGroup.name && m.groupName === selectedGroup.name) ||
+      (selectedGroup.name && m.groupId === selectedGroup.name)
+    );
+
+    const directMembers = Array.isArray(selectedGroup.enrolledMembers) ? selectedGroup.enrolledMembers : [];
+
+    const enrolledFromCustomers = customers.filter(c => 
       c.chits?.some((ch: any) => 
         ch.groupId === selectedGroup.id || 
         ch.groupId === selectedGroup.code || 
@@ -225,6 +297,63 @@ export const AdminDashboard = () => {
         (selectedGroup.name && ch.groupId === selectedGroup.name)
       )
     );
+
+    // Merge into comprehensive customer map so no member is ever missing
+    const customerMap = new Map<string, any>();
+
+    directMembers.forEach((m: any) => {
+      const key = m.customerId || m.mobile || m.phone;
+      if (key) {
+        customerMap.set(key, {
+          id: m.customerId,
+          name: m.customerName,
+          mobile: m.mobile || m.phone,
+          phone: m.mobile || m.phone,
+          pending: m.pending,
+          totalPaid: m.totalPaid,
+          chits: [{
+            groupId: selectedGroup.id,
+            chitValue: m.chitValue,
+            monthlyInstallment: m.monthlyInstallment,
+            ticketNumber: m.ticketNumber,
+            paymentStatus: m.paymentStatus,
+            dueDate: m.dueDate
+          }]
+        });
+      }
+    });
+
+    groupMembersFromStore.forEach((m: any) => {
+      const key = m.customerId || m.mobile || m.phone;
+      if (key && !customerMap.has(key)) {
+        customerMap.set(key, {
+          id: m.customerId,
+          name: m.customerName,
+          mobile: m.mobile || m.phone,
+          phone: m.mobile || m.phone,
+          pending: m.pending,
+          totalPaid: m.totalPaid,
+          chits: [{
+            groupId: selectedGroup.id,
+            chitValue: m.chitValue,
+            monthlyInstallment: m.monthlyInstallment,
+            ticketNumber: m.ticketNumber,
+            paymentStatus: m.paymentStatus,
+            dueDate: m.dueDate
+          }]
+        });
+      }
+    });
+
+    enrolledFromCustomers.forEach((c: any) => {
+      const key = c.id || c.customerCode || c.mobile || c.phone;
+      if (key) {
+        const existing = customerMap.get(key);
+        customerMap.set(key, { ...existing, ...c, chits: (c.chits && c.chits.length > 0) ? c.chits : existing?.chits });
+      }
+    });
+
+    const groupCustomers = Array.from(customerMap.values());
 
     return (
       <div className="space-y-6 animate-in fade-in duration-300">
