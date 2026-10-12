@@ -1,132 +1,10 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { ActionLayout } from '../../../components/layout/ActionLayout';
 import type { ActionType } from '../../../components/layout/ActionLayout';
-import { Search, User, Camera, Phone, FileText, Upload, Lock, Eye, EyeOff, ShieldCheck } from 'lucide-react';
+import { Search, User, Phone, Lock, Eye, EyeOff, ShieldCheck } from 'lucide-react';
 import { Input } from '../../../components/common/Input';
 import { Button } from '../../../components/common/Button';
 import { fetchClient } from '../../../api/client';
-
-interface UploadMethodDialogProps {
-  isOpen: boolean;
-  onClose: () => void;
-  title: string;
-  onUpload: (file: File) => void;
-  accept: string;
-}
-
-const UploadMethodDialog = ({ isOpen, onClose, title, onUpload, accept }: UploadMethodDialogProps) => {
-  const [isCapturing, setIsCapturing] = useState(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  const stopStream = () => {
-    if (videoRef.current && videoRef.current.srcObject) {
-      const stream = videoRef.current.srcObject as MediaStream;
-      stream.getTracks().forEach(track => track.stop());
-    }
-  };
-
-  const handleClose = () => {
-    stopStream();
-    setIsCapturing(false);
-    onClose();
-  };
-
-  useEffect(() => {
-    if (!isOpen) {
-      stopStream();
-      setIsCapturing(false);
-    }
-  }, [isOpen]);
-
-  const startCamera = async () => {
-    setIsCapturing(true);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.play();
-      }
-    } catch (err) {
-      alert("Unable to access camera. Please check permissions.");
-      setIsCapturing(false);
-    }
-  };
-
-  const takeSnapshot = () => {
-    if (videoRef.current && canvasRef.current) {
-      const context = canvasRef.current.getContext('2d');
-      canvasRef.current.width = videoRef.current.videoWidth;
-      canvasRef.current.height = videoRef.current.videoHeight;
-      context?.drawImage(videoRef.current, 0, 0);
-      
-      canvasRef.current.toBlob((blob) => {
-        if (blob) {
-          const file = new File([blob], "camera_capture.jpg", { type: "image/jpeg" });
-          onUpload(file);
-          handleClose();
-        }
-      }, 'image/jpeg');
-    }
-  };
-
-  if (!isOpen) return null;
-  
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-xl p-6 w-full max-w-sm shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden">
-        <h3 className="text-lg font-bold text-neutral-800 mb-4">{title}</h3>
-        
-        {isCapturing ? (
-          <div className="flex flex-col gap-4">
-            <div className="relative rounded-lg overflow-hidden bg-black aspect-video flex items-center justify-center">
-              <video ref={videoRef} className="w-full h-full object-cover" autoPlay playsInline />
-              <canvas ref={canvasRef} className="hidden" />
-            </div>
-            <div className="flex gap-3">
-              <Button variant="secondary" onClick={() => { stopStream(); setIsCapturing(false); }} className="flex-1">Back</Button>
-              <Button variant="primary" onClick={takeSnapshot} className="flex-1">Snap Photo</Button>
-            </div>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-3">
-            <label className="flex items-center gap-3 p-3 border border-neutral-200 rounded-lg hover:border-primary-500 hover:bg-primary-50 transition-colors cursor-pointer group">
-              <input type="file" className="hidden" accept={accept} onChange={(e) => { 
-                if (e.target.files?.[0]) {
-                  onUpload(e.target.files[0]);
-                  handleClose();
-                }
-              }} />
-              <div className="w-10 h-10 rounded-full bg-neutral-100 flex items-center justify-center group-hover:bg-white group-hover:text-primary-600 transition-colors">
-                <Upload className="w-5 h-5" />
-              </div>
-              <div>
-                <span className="block font-semibold text-neutral-800 group-hover:text-primary-700">Upload File</span>
-                <span className="block text-xs text-neutral-500">From computer</span>
-              </div>
-            </label>
-            
-            <button onClick={startCamera} className="flex items-center gap-3 p-3 border border-neutral-200 rounded-lg hover:border-primary-500 hover:bg-primary-50 transition-colors text-left group">
-              <div className="w-10 h-10 rounded-full bg-neutral-100 flex items-center justify-center group-hover:bg-white group-hover:text-primary-600 transition-colors">
-                <Camera className="w-5 h-5" />
-              </div>
-              <div>
-                <span className="block font-semibold text-neutral-800 group-hover:text-primary-700">Capture</span>
-                <span className="block text-xs text-neutral-500">Use webcam</span>
-              </div>
-            </button>
-          </div>
-        )}
-
-        {!isCapturing && (
-          <div className="mt-6 flex justify-end">
-            <Button variant="secondary" onClick={handleClose} className="w-full">Cancel</Button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
 
 export const AddModifyCustomer = () => {
   const [activeAction, setActiveAction] = useState<ActionType>('ADD');
@@ -165,9 +43,6 @@ export const AddModifyCustomer = () => {
               address: c.address,
               dob: c.dateOfBirth || local?.dob || '',
               gender: c.gender || local?.gender || '',
-              email: c.email || local?.email || '',
-              aadhar: c.aadhar || local?.aadhar || '',
-              pan: c.pan || local?.pan || '',
               pending: c.pending ?? local?.pending ?? 0,
               totalPaid: c.totalPaid ?? local?.totalPaid ?? 0,
               chits: chits,
@@ -198,68 +73,33 @@ export const AddModifyCustomer = () => {
   };
 
   const CustomerForm = ({ disabled = false, customer = null }: { disabled?: boolean, customer?: any }) => {
-    const [photoPreview, setPhotoPreview] = useState<string | null>(null);
     const [showPassword, setShowPassword] = useState(false);
-    const [uploadDialog, setUploadDialog] = useState<{type: 'photo' | 'aadhar' | 'pan', title: string, accept: string} | null>(null);
+    const [mobileInput, setMobileInput] = useState(customer?.mobile || customer?.phone || '');
 
-    const handlePhotoChange = (file: File) => {
-      const url = URL.createObjectURL(file);
-      setPhotoPreview(url);
+    useEffect(() => {
+      setMobileInput(customer?.mobile || customer?.phone || '');
+    }, [customer]);
+
+    const handleMobileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const clean = e.target.value.replace(/\D/g, '').slice(0, 10);
+      setMobileInput(clean);
     };
 
-    const handleDocumentChange = (file: File) => {
-      console.log('Document selected:', file.name);
-    };
-
-    const handleUploadComplete = (file: File) => {
-       if (uploadDialog?.type === 'photo') {
-         handlePhotoChange(file);
-       } else {
-         handleDocumentChange(file);
-       }
-    };
-
-  return (
-    <>
-    <UploadMethodDialog 
-      isOpen={!!uploadDialog}
-      onClose={() => setUploadDialog(null)}
-      title={uploadDialog?.title || "Choose Upload Method"}
-      accept={uploadDialog?.accept || "image/*, .pdf"}
-      onUpload={handleUploadComplete}
-    />
-    <form id="customer-form" className={`bg-white p-8 rounded-lg shadow-sm border border-neutral-200 ${disabled ? 'opacity-70 pointer-events-none' : ''}`}>
-      <div className="space-y-10">
-        
-        {/* Personal Details */}
-        <section>
-          <div className="flex items-center space-x-2 border-b border-neutral-100 pb-3 mb-6">
-            <User className="w-5 h-5 text-primary-900" />
-            <h4 className="text-lg font-bold text-neutral-800">Personal Details</h4>
-          </div>
+    return (
+      <form id="customer-form" className={`bg-white p-8 rounded-xl shadow-sm border border-neutral-200 ${disabled ? 'opacity-70 pointer-events-none' : ''}`}>
+        <div className="space-y-8">
           
-          <div className="flex flex-col md:flex-row gap-8">
-            <div className="flex flex-col items-center space-y-3 shrink-0">
-              <div 
-                onClick={() => !disabled && setUploadDialog({type: 'photo', title: 'Upload Photo', accept: 'image/jpeg, image/png'})}
-                className={`w-32 h-32 rounded-full border-2 border-dashed border-neutral-300 bg-neutral-50 flex flex-col items-center justify-center text-neutral-400 transition-colors relative overflow-hidden ${disabled ? 'cursor-not-allowed' : 'hover:bg-neutral-100 hover:border-primary-500 cursor-pointer'}`}
-              >
-                {photoPreview ? (
-                  <img src={photoPreview} alt="Customer Photo" className="w-full h-full object-cover" />
-                ) : (
-                  <>
-                    <Camera className="w-8 h-8 mb-2 text-neutral-300" />
-                    <span className="text-xs font-semibold">Upload Photo</span>
-                  </>
-                )}
-              </div>
-              <p className="text-xs text-neutral-500">JPG or PNG (Max 2MB)</p>
+          {/* Personal Details */}
+          <section>
+            <div className="flex items-center space-x-2 border-b border-neutral-100 pb-3 mb-6">
+              <User className="w-5 h-5 text-primary-900" />
+              <h4 className="text-lg font-bold text-neutral-800">Personal Details</h4>
             </div>
             
-            <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div>
                 <label className="block text-sm font-semibold text-neutral-700 mb-1">Full Name *</label>
-                <Input name="name" defaultValue={customer?.name || ""} placeholder="Enter full name" disabled={disabled} />
+                <Input name="name" defaultValue={customer?.name || ""} placeholder="Enter full name" disabled={disabled} required />
               </div>
               <div>
                 <label className="block text-sm font-semibold text-neutral-700 mb-1">Date of Birth</label>
@@ -280,154 +120,121 @@ export const AddModifyCustomer = () => {
                 </select>
               </div>
             </div>
-          </div>
-        </section>
+          </section>
 
-        {/* Contact Details */}
-        <section>
-          <div className="flex items-center space-x-2 border-b border-neutral-100 pb-3 mb-6">
-            <Phone className="w-5 h-5 text-primary-900" />
-            <h4 className="text-lg font-bold text-neutral-800">Contact Information</h4>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-semibold text-neutral-700 mb-1">Mobile Number *</label>
-              <Input name="mobile" defaultValue={customer?.mobile || ""} placeholder="Enter 10-digit mobile number" disabled={disabled} />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-neutral-700 mb-1">Email Address</label>
-              <Input name="email" type="email" defaultValue={customer?.email || ""} placeholder="Enter email address" disabled={disabled} />
-            </div>
-            <div className="md:col-span-2">
-              <label className="block text-sm font-semibold text-neutral-700 mb-1">Residential Address *</label>
-              <Input name="address" defaultValue={customer?.address || ""} placeholder="Enter full residential address" disabled={disabled} />
-            </div>
-          </div>
-        </section>
-
-        {/* Customer Login Credentials */}
-        <section>
-          <div className="flex items-center space-x-2 border-b border-neutral-100 pb-3 mb-6">
-            <Lock className="w-5 h-5 text-primary-900" />
-            <h4 className="text-lg font-bold text-neutral-800">Customer Login Credentials</h4>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-gradient-to-r from-primary-50/60 to-neutral-50 p-6 rounded-xl border border-primary-200/80 shadow-sm">
-            <div>
-              <label className="block text-sm font-semibold text-neutral-700 mb-1">
-                Customer ID / Username
-              </label>
-              <Input 
-                name="customerCode" 
-                defaultValue={customer?.id || customer?.customerCode || ""} 
-                placeholder="Auto-generated on save (e.g. TC-73071)" 
-                disabled={disabled}
-                readOnly={!customer}
-                className="bg-white font-mono"
-              />
-              <p className="text-xs text-neutral-500 mt-1.5 flex items-center gap-1">
-                <ShieldCheck className="w-3.5 h-3.5 text-success inline shrink-0" />
-                Customer can log in using either this ID or their 10-digit mobile number.
-              </p>
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-neutral-700 mb-1">
-                {customer ? 'Reset Password (optional)' : 'Login Password *'}
-              </label>
-              <div className="relative">
-                <input 
-                  name="password"
-                  type={showPassword ? "text" : "password"}
-                  disabled={disabled}
-                  defaultValue=""
-                  placeholder={customer ? "Leave blank to keep existing password" : "Create password for customer login"}
-                  className="w-full h-[42px] px-3 pr-10 py-2 bg-white border border-neutral-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-900 focus:border-transparent disabled:bg-neutral-50 disabled:text-neutral-400"
-                />
-                <button
-                  type="button"
-                  tabIndex={-1}
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 transition-colors p-1"
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-              <p className="text-xs text-neutral-500 mt-1.5">
-                {customer 
-                  ? "Enter a new password only if the customer requested a password reset." 
-                  : "Set a password so the customer can immediately sign into their mobile/web app."}
-              </p>
-            </div>
-          </div>
-        </section>
-
-        {/* Identity & Documents */}
-        <section>
-          <div className="flex items-center space-x-2 border-b border-neutral-100 pb-3 mb-6">
-            <FileText className="w-5 h-5 text-primary-900" />
-            <h4 className="text-lg font-bold text-neutral-800">Identity & Documents</h4>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-neutral-700 mb-1">Aadhar Number *</label>
-                <Input name="aadhar" defaultValue={customer?.aadhar || ""} placeholder="Enter 12-digit Aadhar" disabled={disabled} />
-              </div>
-              <div 
-                onClick={() => !disabled && setUploadDialog({type: 'aadhar', title: 'Upload Aadhar Document', accept: '.pdf, image/jpeg, image/png'})}
-                className={`border-2 border-dashed border-neutral-200 rounded-lg p-6 flex flex-col items-center justify-center text-center bg-neutral-50 transition-colors ${disabled ? 'cursor-not-allowed' : 'hover:bg-neutral-100 hover:border-primary-500 cursor-pointer'}`}
-              >
-                <Upload className="w-6 h-6 text-neutral-400 mb-2" />
-                <span className="text-sm font-medium text-neutral-700">Upload Aadhar Document</span>
-                <span className="text-xs text-neutral-500 mt-1">PDF, JPG or PNG up to 5MB</span>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-neutral-700 mb-1">PAN Number *</label>
-                <Input name="pan" defaultValue={customer?.pan || ""} placeholder="Enter PAN number" disabled={disabled} />
-              </div>
-              <div 
-                onClick={() => !disabled && setUploadDialog({type: 'pan', title: 'Upload PAN Document', accept: '.pdf, image/jpeg, image/png'})}
-                className={`border-2 border-dashed border-neutral-200 rounded-lg p-6 flex flex-col items-center justify-center text-center bg-neutral-50 transition-colors ${disabled ? 'cursor-not-allowed' : 'hover:bg-neutral-100 hover:border-primary-500 cursor-pointer'}`}
-              >
-                <Upload className="w-6 h-6 text-neutral-400 mb-2" />
-                <span className="text-sm font-medium text-neutral-700">Upload PAN Document</span>
-                <span className="text-xs text-neutral-500 mt-1">PDF, JPG or PNG up to 5MB</span>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Active Chits Section */}
-        {customer?.chits && customer.chits.length > 0 && (
+          {/* Contact Details */}
           <section>
-            <div className="flex items-center space-x-2 border-b border-slate-100 pb-3 mb-6">
-              <h4 className="text-lg font-bold text-slate-800">Active Chit Groups</h4>
+            <div className="flex items-center space-x-2 border-b border-neutral-100 pb-3 mb-6">
+              <Phone className="w-5 h-5 text-primary-900" />
+              <h4 className="text-lg font-bold text-neutral-800">Contact Information</h4>
             </div>
-            <div className="grid grid-cols-1 gap-4">
-              {customer.chits.map((chit: any, idx: number) => (
-                <div key={idx} className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex justify-between items-center shadow-sm">
-                  <div>
-                    <p className="text-sm font-bold text-primary-700">{chit.groupId} - {chit.scheme}</p>
-                    <p className="text-xs text-slate-500 mt-1">Ticket: {chit.ticketNumber} | Joined: {chit.joiningDate}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-bold text-amber-600">{chit.amount}</p>
-                    <span className="inline-block mt-1 px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-[10px] font-bold uppercase">{chit.status}</span>
-                  </div>
-                </div>
-              ))}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-semibold text-neutral-700 mb-1">Mobile Number *</label>
+                <Input 
+                  name="mobile" 
+                  value={mobileInput}
+                  onChange={handleMobileChange}
+                  placeholder="Enter 10-digit mobile number (starts with 6,7,8,9)" 
+                  maxLength={10}
+                  disabled={disabled} 
+                  required
+                />
+                <span className="text-[11px] text-neutral-500 mt-1 block">
+                  Must start with 6, 7, 8, or 9 and be exactly 10 digits.
+                </span>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-neutral-700 mb-1">Residential Address *</label>
+                <Input name="address" defaultValue={customer?.address || ""} placeholder="Enter full residential address" disabled={disabled} required />
+              </div>
             </div>
           </section>
-        )}
-        
-      </div>
-    </form>
-    </>
-  );
-};
+
+          {/* Customer Login Credentials */}
+          <section>
+            <div className="flex items-center space-x-2 border-b border-neutral-100 pb-3 mb-6">
+              <Lock className="w-5 h-5 text-primary-900" />
+              <h4 className="text-lg font-bold text-neutral-800">Customer Login Credentials</h4>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-gradient-to-r from-primary-50/60 to-neutral-50 p-6 rounded-xl border border-primary-200/80 shadow-sm">
+              <div>
+                <label className="block text-sm font-semibold text-neutral-700 mb-1">
+                  User Name (Mobile Number)
+                </label>
+                <div className="relative">
+                  <input 
+                    name="username" 
+                    readOnly
+                    value={mobileInput || "Enter mobile number above"}
+                    className="w-full h-[42px] px-3 py-2 bg-neutral-100 border border-neutral-300 rounded-md text-sm font-mono font-bold text-primary-900 cursor-not-allowed outline-none"
+                  />
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                  </div>
+                </div>
+                <p className="text-xs text-neutral-600 mt-1.5 flex items-center gap-1 font-medium">
+                  The customer's 10-digit mobile number is their permanent login username.
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-neutral-700 mb-1">
+                  {customer ? 'Reset Password (optional)' : 'Login Password *'}
+                </label>
+                <div className="relative">
+                  <input 
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    disabled={disabled}
+                    defaultValue=""
+                    placeholder={customer ? "Leave blank to keep existing password" : "Create password for customer login"}
+                    className="w-full h-[42px] px-3 pr-10 py-2 bg-white border border-neutral-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-900 focus:border-transparent disabled:bg-neutral-50 disabled:text-neutral-400"
+                  />
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 transition-colors p-1"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                <p className="text-xs text-neutral-500 mt-1.5">
+                  {customer 
+                    ? "Enter a new password only if the customer requested a password reset." 
+                    : "Set a password so the customer can immediately sign into the portal using their mobile number."}
+                </p>
+              </div>
+            </div>
+          </section>
+
+          {/* Active Chits Section */}
+          {customer?.chits && customer.chits.length > 0 && (
+            <section>
+              <div className="flex items-center space-x-2 border-b border-slate-100 pb-3 mb-6">
+                <h4 className="text-lg font-bold text-slate-800">Active Chit Groups</h4>
+              </div>
+              <div className="grid grid-cols-1 gap-4">
+                {customer.chits.map((chit: any, idx: number) => (
+                  <div key={idx} className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex justify-between items-center shadow-sm">
+                    <div>
+                      <p className="text-sm font-bold text-primary-700">{chit.groupId} - {chit.scheme || chit.groupName}</p>
+                      <p className="text-xs text-slate-500 mt-1">Ticket: #{chit.ticketNumber} | Joined: {chit.joiningDate || 'Active'}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-bold text-amber-600">{chit.amount || chit.chitValue}</p>
+                      <span className="inline-block mt-1 px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-[10px] font-bold uppercase">{chit.status || 'Active'}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+          
+        </div>
+      </form>
+    );
+  };
 
   const executeSearch = async () => {
     if (!searchId.trim()) return;
@@ -449,9 +256,6 @@ export const AddModifyCustomer = () => {
             address: foundMongo.address,
             dob: foundMongo.dateOfBirth ? new Date(foundMongo.dateOfBirth).toISOString().split('T')[0] : '',
             gender: foundMongo.gender || '',
-            email: foundMongo.email || '',
-            aadhar: foundMongo.aadhar || '',
-            pan: foundMongo.pan || '',
             status: foundMongo.status || 'ACTIVE'
           };
           setActiveCustomer(mapped);
@@ -490,7 +294,7 @@ export const AddModifyCustomer = () => {
                   <div className="flex flex-col gap-4">
                     <div className="flex border border-neutral-300 rounded-md overflow-hidden focus-within:ring-1 focus-within:ring-primary-900 transition-all">
                       <div className="bg-neutral-100 px-4 py-2.5 flex items-center border-r border-neutral-300 w-48 text-sm font-semibold text-neutral-700 shrink-0">
-                        Customer ID / Mobile
+                        Mobile / Customer ID
                       </div>
                       <div className="flex-1 relative flex items-center">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -500,7 +304,7 @@ export const AddModifyCustomer = () => {
                           className="w-full pl-9 pr-3 py-2.5 text-sm outline-none bg-white" 
                           value={searchId}
                           onChange={(e) => setSearchId(e.target.value)}
-                          placeholder="Search..."
+                          placeholder="Search by 10-digit mobile or name..."
                         />
                       </div>
                     </div>
@@ -518,7 +322,7 @@ export const AddModifyCustomer = () => {
               <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
                 <div className="flex items-center justify-end mt-8 mb-2 px-2">
                   <span className="px-3 py-1 bg-primary-50 text-primary-900 rounded-md text-sm font-semibold border border-primary-100 shadow-sm">
-                    Modifying: {activeCustomer.name} ({activeCustomer.id})
+                    Modifying: {activeCustomer.name} (Username: {activeCustomer.mobile})
                   </span>
                 </div>
                 <CustomerForm customer={activeCustomer} />
@@ -529,7 +333,7 @@ export const AddModifyCustomer = () => {
       );
     }
     
-    // For ADD or when no action is selected (default)
+    // For ADD
     const isAdd = action === 'ADD';
     return (
       <div className="w-full pb-10">
@@ -572,11 +376,11 @@ export const AddModifyCustomer = () => {
           return;
         }
 
-        const customerCode = `TC-${Math.floor(10000 + Math.random() * 90000)}`;
-
+        // Username is the mobile number
         const newCustomer: any = {
-          id: customerCode,
-          customerCode: customerCode,
+          id: cleanMobile,
+          customerCode: cleanMobile,
+          username: cleanMobile,
           name: nameVal,
           fullName: nameVal,
           mobile: cleanMobile,
@@ -584,10 +388,7 @@ export const AddModifyCustomer = () => {
           password: passwordVal,
           dob: formData.get('dob') as string,
           gender: formData.get('gender') as string,
-          email: formData.get('email') as string,
           address: addressVal,
-          aadhar: formData.get('aadhar') as string,
-          pan: formData.get('pan') as string,
           status: 'ACTIVE',
           chits: [],
           pending: 0,
@@ -599,17 +400,14 @@ export const AddModifyCustomer = () => {
           const res = await fetchClient('/customers', {
             method: 'POST',
             body: JSON.stringify({
-              customerCode: customerCode,
+              customerCode: cleanMobile,
               fullName: nameVal,
               name: nameVal,
               phone: cleanMobile,
               mobile: cleanMobile,
               address: addressVal,
               password: passwordVal,
-              email: newCustomer.email,
               gender: newCustomer.gender ? newCustomer.gender.toUpperCase() : undefined,
-              aadhar: newCustomer.aadhar,
-              pan: newCustomer.pan,
               status: 'ACTIVE'
             })
           });
@@ -632,7 +430,7 @@ export const AddModifyCustomer = () => {
           return updated;
         });
         window.dispatchEvent(new Event('storage'));
-        alert(`Success: Customer ${newCustomer.name} (${newCustomer.id}) has been successfully registered!\n\nCustomer Login Credentials:\nUser ID / Phone: ${newCustomer.id} or ${newCustomer.mobile}\nPassword: ${passwordVal}`);
+        alert(`Success: Customer ${newCustomer.name} has been successfully registered!\n\nCustomer Login Credentials:\nUser Name (Mobile Number): ${newCustomer.mobile}\nPassword: ${passwordVal}`);
       } else {
         alert('Success: New customer has been successfully registered!');
       }
@@ -678,7 +476,7 @@ export const AddModifyCustomer = () => {
         localStorage.setItem('mockCustomers', JSON.stringify(updatedLocal));
         setMockCustomers(updatedLocal);
         window.dispatchEvent(new Event('storage'));
-        alert(newPassword ? 'Success: Customer details and login password have been updated!' : 'Success: Customer details have been successfully updated in MongoDB!');
+        alert(newPassword ? 'Success: Customer details and login password have been updated!' : 'Success: Customer details have been successfully updated!');
       }
     }
     handleClear();
@@ -697,7 +495,7 @@ export const AddModifyCustomer = () => {
         console.warn('Could not approve customer status in MongoDB:', err);
       }
     }
-    alert('Success: Customer details updated and approved in MongoDB!');
+    alert('Success: Customer details updated and approved!');
     handleClear();
     setActiveAction('ADD');
   };
