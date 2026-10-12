@@ -36,17 +36,18 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.Customer = void 0;
 const mongoose_1 = __importStar(require("mongoose"));
 const CustomerSchema = new mongoose_1.Schema({
-    customerCode: { type: String, required: true, unique: true },
+    customerCode: { type: String, unique: true },
     fullName: { type: String, required: true },
     phone: { type: String, required: true },
     alternatePhone: { type: String },
     email: { type: String },
+    passwordHash: { type: String },
     dateOfBirth: { type: Date },
     gender: { type: String, enum: ['MALE', 'FEMALE', 'OTHER'] },
     photo: { type: String },
-    address: { type: String, required: true },
+    address: { type: String },
     occupation: { type: String },
-    branchId: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Branch', required: true },
+    branchId: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Branch' },
     assignedAgentId: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User' },
     kycStatus: {
         type: String,

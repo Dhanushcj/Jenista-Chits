@@ -21,6 +21,17 @@ class ChitPlanController {
             next(error);
         }
     }
+    static async getPublicPlans(req, res, next) {
+        try {
+            const plans = await chit_plan_model_1.ChitPlan.find({ status: 'ACTIVE' })
+                .populate('companyId', 'companyName')
+                .populate('branchId', 'branchName');
+            res.status(200).json({ success: true, data: plans });
+        }
+        catch (error) {
+            next(error);
+        }
+    }
     static async getPlans(req, res, next) {
         try {
             const plans = await chit_plan_model_1.ChitPlan.find()

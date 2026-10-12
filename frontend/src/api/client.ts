@@ -1,4 +1,5 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://jenista-chits.onrender.com/api/v1';
+const rawBaseUrl = (import.meta.env.VITE_API_URL || 'https://jenista-chits.onrender.com/api/v1').trim().replace(/\/+$/, '');
+const API_BASE_URL = rawBaseUrl.endsWith('/api/v1') ? rawBaseUrl : `${rawBaseUrl}/api/v1`;
 
 export const fetchClient = async (endpoint: string, options: RequestInit = {}) => {
   const token = localStorage.getItem('token');

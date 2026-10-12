@@ -63,6 +63,9 @@ app.use('/api/v1/documents', document_routes_1.default);
 app.use('/api/v1/notifications', notification_routes_1.default);
 app.use('/api/v1/analytics', analytics_routes_1.default);
 app.use('/api/v1/reports', reports_routes_1.default);
+// Fallback aliases for root paths
+app.use('/customers', customer_routes_1.default);
+app.use('/auth', auth_routes_1.default);
 // Error Handler
 app.use(errorHandler_1.errorHandler);
 exports.default = app;

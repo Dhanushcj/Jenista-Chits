@@ -65,6 +65,10 @@ app.use('/api/v1/notifications', notificationRoutes);
 app.use('/api/v1/analytics', analyticsRoutes);
 app.use('/api/v1/reports', reportsRoutes);
 
+// Fallback aliases for root paths
+app.use('/customers', customerRoutes);
+app.use('/auth', authRoutes);
+
 // Error Handler
 app.use(errorHandler);
 
