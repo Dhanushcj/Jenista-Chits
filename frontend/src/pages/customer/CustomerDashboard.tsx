@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
-import { Layers, CreditCard, TrendingUp, Bell, History, Calendar, ArrowRight, Copy } from 'lucide-react';
+import { Layers, CreditCard, TrendingUp, Bell, History, Calendar, ArrowRight, Copy, Table } from 'lucide-react';
 import { formatCurrency, formatDate } from '../../utils/format';
 import { useAuth } from '../../store/AuthContext';
 import { fetchClient } from '../../api/client';
+import { FixedPlanSchedule } from '../../components/customer/FixedPlanSchedule';
 
 export const CustomerDashboard = () => {
   const { user, logout } = useAuth();
+  const [activeTab, setActiveTab] = useState<'myChits' | 'fixedPlanChart'>('myChits');
   const [activeChits, setActiveChits] = useState(0);
   const [totalInvested, setTotalInvested] = useState(0);
   const [myChits, setMyChits] = useState<any[]>([]);
@@ -117,18 +119,70 @@ export const CustomerDashboard = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="card border-l-4 border-l-primary-900 p-6">
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Active Chits</p>
-                  <h3 className="text-2xl font-bold text-primary-900">{activeChits}</h3>
+          {/* Navigation Tabs */}
+          <div className="flex border-b border-neutral-200 space-x-2">
+            <button
+              onClick={() => setActiveTab('myChits')}
+              className={`pb-3 px-4 font-bold text-sm border-b-2 flex items-center transition-colors ${
+                activeTab === 'myChits'
+                  ? 'border-primary-900 text-primary-900'
+                  : 'border-transparent text-neutral-500 hover:text-neutral-700'
+              }`}
+            >
+              <Layers className="w-4 h-4 mr-2" />
+              My Portfolio & Chits
+            </button>
+            <button
+              onClick={() => setActiveTab('fixedPlanChart')}
+              className={`pb-3 px-4 font-bold text-sm border-b-2 flex items-center transition-colors ${
+                activeTab === 'fixedPlanChart'
+                  ? 'border-emerald-700 text-emerald-800'
+                  : 'border-transparent text-neutral-500 hover:text-neutral-700'
+              }`}
+            >
+              <Table className="w-4 h-4 mr-2" />
+              Fixed Plan Schedule (20 Months Chart)
+              <span className="ml-2 px-2 py-0.5 text-[10px] bg-emerald-100 text-emerald-800 rounded-full uppercase tracking-wider font-extrabold">
+                Official Chart
+              </span>
+            </button>
+          </div>
+
+          {activeTab === 'fixedPlanChart' ? (
+            <FixedPlanSchedule />
+          ) : (
+            <>
+              {/* Quick Prompt to Fixed Plan Chart */}
+              <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-primary-50 border border-emerald-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold shrink-0">
+                    <Table className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-emerald-950">20 Months Fixed Chit Plans Available (ரூ. 1,00,000 to ரூ. 10,00,000)</h4>
+                    <p className="text-xs text-emerald-700">Check full month-by-month payout and due schedule with official guidelines.</p>
+                  </div>
                 </div>
-                <div className="p-3 bg-primary-100 rounded-md">
-                  <Layers className="h-6 w-6 text-primary-900" />
-                </div>
+                <button
+                  onClick={() => setActiveTab('fixedPlanChart')}
+                  className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold px-4 py-2 rounded-lg transition-colors flex items-center gap-1 shadow-sm shrink-0"
+                >
+                  View Schedule <ArrowRight className="w-3.5 h-3.5" />
+                </button>
               </div>
-            </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="card border-l-4 border-l-primary-900 p-6">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Active Chits</p>
+                      <h3 className="text-2xl font-bold text-primary-900">{activeChits}</h3>
+                    </div>
+                    <div className="p-3 bg-primary-100 rounded-md">
+                      <Layers className="h-6 w-6 text-primary-900" />
+                    </div>
+                  </div>
+                </div>
 
             <div className="card border-l-4 border-l-success p-6">
               <div className="flex justify-between items-start">
@@ -269,6 +323,8 @@ export const CustomerDashboard = () => {
             </div>
 
           </div>
+          </>
+          )}
         </div>
       </div>
     </div>
