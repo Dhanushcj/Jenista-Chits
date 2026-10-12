@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, Check, Menu, Trash2 } from 'lucide-react';
+import { Link, Check, Menu } from 'lucide-react';
 import { useAuth } from '../../store/AuthContext';
 
 export const Topbar = ({ onMenuClick }: { onMenuClick?: () => void }) => {
@@ -11,42 +11,35 @@ export const Topbar = ({ onMenuClick }: { onMenuClick?: () => void }) => {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const clearTestData = () => {
-    if (window.confirm("Are you sure you want to clear all mock test data? This will reset all customers and groups to default.")) {
-      localStorage.clear();
-      window.location.reload();
-    }
-  };
-
   return (
-    <header className="h-10 bg-white border-b border-neutral-200 flex items-center justify-between px-4 sm:px-6 shrink-0 relative z-50">
+    <header className="h-10 bg-white border-b border-neutral-200 flex items-center justify-between px-3 sm:px-6 shrink-0 relative z-50">
       <div className="flex items-center flex-1 space-x-4">
         <button 
           onClick={onMenuClick}
-          className="lg:hidden p-2 -ml-2 text-neutral-600 hover:text-primary-900 rounded-md hover:bg-neutral-100 transition-colors"
+          className="lg:hidden p-1.5 -ml-1 text-neutral-600 hover:text-primary-900 rounded-md hover:bg-neutral-100 transition-colors"
         >
           <Menu className="w-5 h-5" />
         </button>
       </div>
 
-      <div className="flex items-center space-x-4">
-        <button 
-          onClick={clearTestData}
-          className="hidden sm:flex items-center text-sm font-medium text-danger hover:text-danger-dark transition-colors bg-danger-light/20 hover:bg-danger-light/50 px-3 py-1.5 rounded-md"
-        >
-          <Trash2 className="w-4 h-4 mr-1" />
-          Clear Test Data
-        </button>
+      <div className="flex items-center space-x-2 sm:space-x-4">
         <button 
           onClick={copyRegistrationLink}
-          className="hidden sm:flex items-center text-sm font-medium text-primary-700 hover:text-primary-900 transition-colors bg-primary-50 hover:bg-primary-100 px-3 py-1.5 rounded-md"
+          className="flex items-center text-xs sm:text-sm font-medium text-primary-700 hover:text-primary-900 transition-colors bg-primary-50 hover:bg-primary-100 px-2 sm:px-3 py-1 sm:py-1.5 rounded-md shrink-0"
+          title="Customer Registration Link"
         >
-          {copied ? <Check className="w-4 h-4 mr-1 text-success" /> : <Link className="w-4 h-4 mr-1" />}
-          {copied ? 'Copied!' : 'Customer Registration Link'}
+          {copied ? <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1 text-success shrink-0" /> : <Link className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1 shrink-0" />}
+          <span>
+            {copied ? 'Copied!' : (
+              <>
+                <span className="hidden sm:inline">Customer </span>Registration Link
+              </>
+            )}
+          </span>
         </button>
         <button 
           onClick={logout}
-          className="text-sm font-medium text-neutral-600 hover:text-danger transition-colors"
+          className="text-xs sm:text-sm font-medium text-neutral-600 hover:text-danger transition-colors shrink-0"
         >
           Logout
         </button>
