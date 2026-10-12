@@ -48,8 +48,14 @@ class CustomerController {
                 filter.branchId = branchId;
             if (assignedAgentId)
                 filter.assignedAgentId = assignedAgentId;
-            if (status)
-                filter.status = status;
+            if (status) {
+                if (status === 'PENDING_APPROVAL' || status === 'PENDING') {
+                    filter.$or = [{ status: 'PENDING_APPROVAL' }, { status: 'PENDING' }];
+                }
+                else {
+                    filter.status = status;
+                }
+            }
             if (search) {
                 filter.$or = [
                     { fullName: { $regex: search, $options: 'i' } },
@@ -70,8 +76,8 @@ class CustomerController {
     static async updateCustomerStatus(req, res, next) {
         try {
             const { id } = req.params;
-            const { status } = req.body;
-            if (!['ACTIVE', 'INACTIVE', 'PENDING_APPROVAL', 'REJECTED'].includes(status)) {
+            const { status, fullName, phone, address, name, mobile } = req.body;
+            if (status && !['ACTIVE', 'INACTIVE', 'PENDING_APPROVAL', 'REJECTED'].includes(status)) {
                 throw new ApiError_1.ApiError(400, 'Invalid customer status', 'VALIDATION_ERROR');
             }
             const customerId = Array.isArray(id) ? id[0] : id;
@@ -82,12 +88,20 @@ class CustomerController {
             if (!customer) {
                 throw new ApiError_1.ApiError(404, 'Customer not found', 'NOT_FOUND');
             }
-            customer.status = status;
-            if (status === 'ACTIVE') {
-                customer.kycStatus = 'VERIFIED';
+            if (status) {
+                customer.status = status;
+                if (status === 'ACTIVE') {
+                    customer.kycStatus = 'VERIFIED';
+                }
             }
+            if (fullName || name)
+                customer.fullName = fullName || name;
+            if (phone || mobile)
+                customer.phone = phone || mobile;
+            if (address)
+                customer.address = address;
             await customer.save();
-            res.status(200).json({ success: true, message: `Customer status updated to ${status}`, data: customer });
+            res.status(200).json({ success: true, message: `Customer updated successfully`, data: customer });
         }
         catch (error) {
             next(error);

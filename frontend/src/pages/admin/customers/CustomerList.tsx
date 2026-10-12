@@ -44,6 +44,8 @@ export const CustomerList = () => {
             status: c.status || 'ACTIVE'
           }));
           setAllCustomers(mapped);
+          setFilteredCustomers(mapped);
+          setHasSearched(true);
           localStorage.setItem('mockCustomers', JSON.stringify(mapped));
         }
       } catch (err) {
@@ -70,9 +72,9 @@ export const CustomerList = () => {
   };
 
   const handleSearch = () => {
-    // If all fields are empty, don't show any results
+    // If all fields are empty, show all customers
     if (!searchName && !searchMobile && !searchAadhar && !searchPan) {
-      setFilteredCustomers([]);
+      setFilteredCustomers(allCustomers);
       setHasSearched(true);
       return;
     }

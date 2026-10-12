@@ -50,7 +50,13 @@ export class CustomerController {
       const filter: any = {};
       if (branchId) filter.branchId = branchId;
       if (assignedAgentId) filter.assignedAgentId = assignedAgentId;
-      if (status) filter.status = status;
+      if (status) {
+        if (status === 'PENDING_APPROVAL' || status === 'PENDING') {
+          filter.$or = [{ status: 'PENDING_APPROVAL' }, { status: 'PENDING' }];
+        } else {
+          filter.status = status;
+        }
+      }
       
       if (search) {
         filter.$or = [
@@ -74,9 +80,9 @@ export class CustomerController {
   static async updateCustomerStatus(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
-      const { status } = req.body;
+      const { status, fullName, phone, address, name, mobile } = req.body;
 
-      if (!['ACTIVE', 'INACTIVE', 'PENDING_APPROVAL', 'REJECTED'].includes(status)) {
+      if (status && !['ACTIVE', 'INACTIVE', 'PENDING_APPROVAL', 'REJECTED'].includes(status)) {
         throw new ApiError(400, 'Invalid customer status', 'VALIDATION_ERROR');
       }
 
@@ -91,13 +97,19 @@ export class CustomerController {
         throw new ApiError(404, 'Customer not found', 'NOT_FOUND');
       }
 
-      customer.status = status as any;
-      if (status === 'ACTIVE') {
-        customer.kycStatus = 'VERIFIED';
+      if (status) {
+        customer.status = status as any;
+        if (status === 'ACTIVE') {
+          customer.kycStatus = 'VERIFIED';
+        }
       }
+      if (fullName || name) customer.fullName = fullName || name;
+      if (phone || mobile) customer.phone = phone || mobile;
+      if (address) customer.address = address;
+
       await customer.save();
 
-      res.status(200).json({ success: true, message: `Customer status updated to ${status}`, data: customer });
+      res.status(200).json({ success: true, message: `Customer updated successfully`, data: customer });
     } catch (error) {
       next(error);
     }

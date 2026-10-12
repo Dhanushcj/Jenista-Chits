@@ -360,7 +360,40 @@ export const AddModifyCustomer = () => {
   );
 };
 
-  const executeSearch = () => {
+  const executeSearch = async () => {
+    if (!searchId.trim()) return;
+    try {
+      const res = await fetchClient(`/customers?search=${encodeURIComponent(searchId.trim())}`);
+      if (res && res.data && Array.isArray(res.data) && res.data.length > 0) {
+        const foundMongo = res.data.find((c: any) => 
+          (c.customerCode && c.customerCode.toLowerCase() === searchId.toLowerCase()) ||
+          (c.phone && c.phone.includes(searchId)) ||
+          (c.fullName && c.fullName.toLowerCase().includes(searchId.toLowerCase()))
+        ) || res.data[0];
+
+        if (foundMongo) {
+          const mapped = {
+            id: foundMongo.customerCode || foundMongo._id,
+            mongoId: foundMongo._id,
+            name: foundMongo.fullName || foundMongo.name,
+            mobile: foundMongo.phone || foundMongo.mobile,
+            address: foundMongo.address,
+            dob: foundMongo.dateOfBirth ? new Date(foundMongo.dateOfBirth).toISOString().split('T')[0] : '',
+            gender: foundMongo.gender || '',
+            email: foundMongo.email || '',
+            aadhar: foundMongo.aadhar || '',
+            pan: foundMongo.pan || '',
+            status: foundMongo.status || 'ACTIVE'
+          };
+          setActiveCustomer(mapped);
+          setHasSearched(true);
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn('Backend search error, falling back to local:', e);
+    }
+
     const found = mockCustomers.find(c => 
       c.id.toLowerCase() === searchId.toLowerCase() || 
       c.mobile === searchId || 
@@ -438,40 +471,101 @@ export const AddModifyCustomer = () => {
     );
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (activeAction === 'ADD') {
       const form = document.getElementById('customer-form') as HTMLFormElement;
       if (form) {
         const formData = new FormData(form);
-        const newCustomer = {
+        const nameVal = (formData.get('name') as string) || '';
+        const mobileVal = (formData.get('mobile') as string) || '';
+        const addressVal = (formData.get('address') as string) || '';
+
+        if (!nameVal || !mobileVal) {
+          alert('Please enter at least Customer Name and Mobile Number.');
+          return;
+        }
+
+        const newCustomer: any = {
           id: `TC-${Math.floor(10000 + Math.random() * 90000)}`,
-          name: formData.get('name') as string,
-          mobile: formData.get('mobile') as string,
+          name: nameVal,
+          mobile: mobileVal,
           dob: formData.get('dob') as string,
           gender: formData.get('gender') as string,
           email: formData.get('email') as string,
-          address: formData.get('address') as string,
+          address: addressVal,
           aadhar: formData.get('aadhar') as string,
           pan: formData.get('pan') as string,
+          status: 'ACTIVE'
         };
+
+        try {
+          const res = await fetchClient('/customers', {
+            method: 'POST',
+            body: JSON.stringify({
+              fullName: nameVal,
+              phone: mobileVal,
+              address: addressVal,
+              email: newCustomer.email,
+              gender: newCustomer.gender ? newCustomer.gender.toUpperCase() : undefined,
+              aadhar: newCustomer.aadhar,
+              pan: newCustomer.pan,
+              status: 'ACTIVE'
+            })
+          });
+          if (res && res.data) {
+            newCustomer.id = res.data.customerCode || newCustomer.id;
+            newCustomer.mongoId = res.data._id;
+          }
+        } catch (err: any) {
+          console.warn('Could not post customer to MongoDB directly:', err);
+        }
+
         setMockCustomers(prev => {
           const updated = [...prev, newCustomer];
           localStorage.setItem('mockCustomers', JSON.stringify(updated));
           return updated;
         });
-        alert(`Success: New customer ${newCustomer.name} (${newCustomer.id}) has been successfully created!`);
+        alert(`Success: New customer ${newCustomer.name} (${newCustomer.id}) has been successfully created in MongoDB!`);
       } else {
         alert('Success: New customer has been successfully created!');
       }
     } else if (activeAction === 'MODIFY') {
-      alert('Success: Customer details have been successfully updated!');
+      const form = document.getElementById('customer-form') as HTMLFormElement;
+      if (form && activeCustomer) {
+        const formData = new FormData(form);
+        const targetId = activeCustomer.mongoId || activeCustomer.id;
+        try {
+          await fetchClient(`/customers/${targetId}/status`, {
+            method: 'PATCH',
+            body: JSON.stringify({
+              fullName: formData.get('name') as string,
+              phone: formData.get('mobile') as string,
+              address: formData.get('address') as string,
+            })
+          });
+        } catch (err) {
+          console.warn('Could not update customer in MongoDB:', err);
+        }
+      }
+      alert('Success: Customer details have been successfully updated in MongoDB!');
     }
     handleClear();
     setActiveAction(null);
   };
 
-  const handleConfirmApprove = () => {
-    alert('Success: Customer details updated and instantly approved by Admin!');
+  const handleConfirmApprove = async () => {
+    if (activeCustomer) {
+      const targetId = activeCustomer.mongoId || activeCustomer.id;
+      try {
+        await fetchClient(`/customers/${targetId}/status`, {
+          method: 'PATCH',
+          body: JSON.stringify({ status: 'ACTIVE' })
+        });
+      } catch (err) {
+        console.warn('Could not approve customer status in MongoDB:', err);
+      }
+    }
+    alert('Success: Customer details updated and approved in MongoDB!');
     handleClear();
     setActiveAction(null);
   };

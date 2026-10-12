@@ -9,6 +9,7 @@ router.post('/', customer_controller_1.CustomerController.createCustomer);
 router.post('/login', customer_controller_1.CustomerController.customerLogin);
 // Customer list (allows filtering by status, search, etc.)
 router.get('/', customer_controller_1.CustomerController.getCustomers);
-// Update customer status (e.g. approve / reject)
+// Update customer status or details (e.g. approve / reject / modify)
 router.patch('/:id/status', customer_controller_1.CustomerController.updateCustomerStatus);
+router.patch('/:id', customer_controller_1.CustomerController.updateCustomerStatus);
 exports.default = router;

@@ -12,7 +12,8 @@ router.post('/login', CustomerController.customerLogin);
 // Customer list (allows filtering by status, search, etc.)
 router.get('/', CustomerController.getCustomers);
 
-// Update customer status (e.g. approve / reject)
+// Update customer status or details (e.g. approve / reject / modify)
 router.patch('/:id/status', CustomerController.updateCustomerStatus);
+router.patch('/:id', CustomerController.updateCustomerStatus);
 
 export default router;
