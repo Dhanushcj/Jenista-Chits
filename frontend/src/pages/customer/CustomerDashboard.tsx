@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Layers, CreditCard, TrendingUp, Bell, History, Calendar, ArrowRight, Copy, Table, Gavel } from 'lucide-react';
+import { Layers, CreditCard, TrendingUp, Bell, History, Calendar, ArrowRight, Copy, Table, Gavel, Award, Building2, Wallet, CheckCircle2 } from 'lucide-react';
 import { formatCurrency, formatDate } from '../../utils/format';
 import { useAuth } from '../../store/AuthContext';
 import { fetchClient } from '../../api/client';
@@ -14,6 +14,27 @@ export const CustomerDashboard = () => {
   const [myChits, setMyChits] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [copied, setCopied] = useState(false);
+
+  // Payment states
+  const [paymentModalChit, setPaymentModalChit] = useState<any | null>(null);
+  const [payAmount, setPayAmount] = useState<string>('');
+  const [payMode, setPayMode] = useState<'UPI' | 'Bank Transfer' | 'Cash'>('UPI');
+  const [payRefNo, setPayRefNo] = useState<string>('');
+  const [paySubmitting, setPaySubmitting] = useState(false);
+  const [paySuccessMsg, setPaySuccessMsg] = useState('');
+  const [pendingRequests, setPendingRequests] = useState<any[]>([]);
+
+  // Withdrawal States
+  const [withdrawModalChit, setWithdrawModalChit] = useState<any | null>(null);
+  const [withdrawPayoutMethod, setWithdrawPayoutMethod] = useState<'Bank Transfer' | 'UPI'>('Bank Transfer');
+  const [bankName, setBankName] = useState('');
+  const [accNo, setAccNo] = useState('');
+  const [ifsc, setIfsc] = useState('');
+  const [holderName, setHolderName] = useState('');
+  const [upiId, setUpiId] = useState('');
+  const [withdrawSubmitting, setWithdrawSubmitting] = useState(false);
+  const [withdrawSuccessMsg, setWithdrawSuccessMsg] = useState('');
+  const [pendingWithdrawals, setPendingWithdrawals] = useState<any[]>([]);
 
   useEffect(() => {
     const loadCustomerData = async () => {
@@ -85,24 +106,38 @@ export const CustomerDashboard = () => {
               monthlyInstallment: m.monthlyInstallment,
               dueDate: m.dueDate,
               paymentStatus: m.paymentStatus,
-              status: 'Active'
+              isWithdrawn: m.isWithdrawn || false,
+              withdrawnAmount: m.withdrawnAmount || 0,
+              status: m.status || 'Active'
             }];
           }
         });
 
         setMyChits(finalChits);
         setActiveChits(finalChits.length);
-        setTotalInvested(totalInvestedFromApi ?? customer?.totalPaid ?? 0);
+
+        // Reconcile total invested across MongoDB, localStorage, and ledger transactions
+        const ledger = JSON.parse(localStorage.getItem('ledgerTransactions') || '[]');
+        const myTransactions = ledger.filter((t: any) => 
+          (user?.id && (t.customerId === user.id || t.reference?.includes(user.id) || t.description?.includes(user.id)))
+        );
+        const ledgerCreditTotal = myTransactions
+          .filter((t: any) => t.type === 'CREDIT' || t.category === 'INSTALLMENT')
+          .reduce((sum: number, t: any) => sum + (Number(t.amount) || 0), 0);
+
+        const calculatedInvested = Math.max(
+          Number(totalInvestedFromApi || 0), 
+          Number(customer?.totalPaid || 0), 
+          ledgerCreditTotal
+        );
+        setTotalInvested(calculatedInvested);
+        setTransactions(myTransactions);
       }
     };
 
     loadCustomerData();
-    const interval = setInterval(loadCustomerData, 5000);
+    const interval = setInterval(loadCustomerData, 4000);
     window.addEventListener('storage', loadCustomerData);
-
-    const ledger = JSON.parse(localStorage.getItem('ledgerTransactions') || '[]');
-    const myTransactions = ledger.filter((t: any) => t.reference && user?.id && t.reference.includes(user.id));
-    setTransactions(myTransactions);
 
     return () => {
       clearInterval(interval);
@@ -110,20 +145,16 @@ export const CustomerDashboard = () => {
     };
   }, [user]);
 
-  const [paymentModalChit, setPaymentModalChit] = useState<any | null>(null);
-  const [payAmount, setPayAmount] = useState<string>('');
-  const [payMode, setPayMode] = useState<'UPI' | 'Bank Transfer' | 'Cash'>('UPI');
-  const [payRefNo, setPayRefNo] = useState<string>('');
-  const [paySubmitting, setPaySubmitting] = useState(false);
-  const [paySuccessMsg, setPaySuccessMsg] = useState('');
-
-  const [pendingRequests, setPendingRequests] = useState<any[]>([]);
-
+  // Sync Payment Requests & Withdrawal Requests for live status
   useEffect(() => {
     const checkRequests = () => {
       const allReqs = JSON.parse(localStorage.getItem('paymentRequests') || '[]');
       const userReqs = allReqs.filter((r: any) => r.customerId === user?.id || (user?.phone && r.mobile === user?.phone));
       setPendingRequests(userReqs);
+
+      const allWReqs = JSON.parse(localStorage.getItem('withdrawalRequests') || '[]');
+      const userWReqs = allWReqs.filter((r: any) => r.customerId === user?.id || (user?.phone && r.mobile === user?.phone));
+      setPendingWithdrawals(userWReqs);
     };
     checkRequests();
     window.addEventListener('storage', checkRequests);
@@ -177,6 +208,75 @@ export const CustomerDashboard = () => {
         setPaymentModalChit(null);
         setPaySuccessMsg('');
       }, 2000);
+    }, 400);
+  };
+
+  const handleOpenWithdraw = (chit: any) => {
+    setWithdrawModalChit(chit);
+    setWithdrawPayoutMethod('Bank Transfer');
+    setBankName('');
+    setAccNo('');
+    setIfsc('');
+    setHolderName(user?.name || '');
+    setUpiId('');
+    setWithdrawSuccessMsg('');
+  };
+
+  const handleSubmitWithdrawal = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!withdrawModalChit) return;
+
+    if (withdrawPayoutMethod === 'Bank Transfer') {
+      if (!accNo.trim() || !ifsc.trim()) {
+        alert('Please enter your Bank Account Number and IFSC Code.');
+        return;
+      }
+    } else {
+      if (!upiId.trim()) {
+        alert('Please enter your UPI ID.');
+        return;
+      }
+    }
+
+    setWithdrawSubmitting(true);
+    const chitVal = withdrawModalChit.chitValue || withdrawModalChit.amount || 100000;
+    const prizeAmount = chitVal * 0.95; // 95% prize after 5% foreman commission
+
+    const newWReq = {
+      id: `WDR-${Date.now().toString().slice(-6)}`,
+      customerId: user?.id || 'CUST',
+      customerName: user?.name || 'Customer',
+      mobile: user?.phone || '',
+      groupId: withdrawModalChit.groupId,
+      groupName: withdrawModalChit.groupName || withdrawModalChit.groupId,
+      ticketNumber: withdrawModalChit.ticketNumber || '',
+      chitValue: chitVal,
+      eligibleAmount: prizeAmount,
+      payoutMethod: withdrawPayoutMethod,
+      payoutDetails: {
+        bankName: withdrawPayoutMethod === 'Bank Transfer' ? bankName.trim() : undefined,
+        accountNumber: withdrawPayoutMethod === 'Bank Transfer' ? accNo.trim() : undefined,
+        ifsc: withdrawPayoutMethod === 'Bank Transfer' ? ifsc.trim().toUpperCase() : undefined,
+        accountHolderName: withdrawPayoutMethod === 'Bank Transfer' ? holderName.trim() : undefined,
+        upiId: withdrawPayoutMethod === 'UPI' ? upiId.trim() : undefined
+      },
+      requestedAt: new Date().toISOString(),
+      status: 'PENDING_ADMIN_DISBURSAL',
+      remarks: `Prize payout claim requested by ${user?.name || 'Customer'}`
+    };
+
+    const existingWReqs = JSON.parse(localStorage.getItem('withdrawalRequests') || '[]');
+    const updated = [newWReq, ...existingWReqs];
+    localStorage.setItem('withdrawalRequests', JSON.stringify(updated));
+    window.dispatchEvent(new Event('storage'));
+
+    setTimeout(() => {
+      setWithdrawSubmitting(false);
+      setWithdrawSuccessMsg('Withdrawal claim request submitted successfully! Admin will verify and disburse your prize money.');
+      setTimeout(() => {
+        setWithdrawModalChit(null);
+        setWithdrawSuccessMsg('');
+      }, 2500);
     }, 400);
   };
 
@@ -324,7 +424,7 @@ export const CustomerDashboard = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div className="card border-l-4 border-l-primary-900 p-6">
                   <div className="flex justify-between items-start">
                     <div>
@@ -337,36 +437,62 @@ export const CustomerDashboard = () => {
                   </div>
                 </div>
 
-            <div className="card border-l-4 border-l-success p-6">
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Total Invested</p>
-                  <h3 className="text-2xl font-bold text-success">{formatCurrency(totalInvested)}</h3>
+                <div className="card border-l-4 border-l-success p-6">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Total Invested</p>
+                      <h3 className="text-2xl font-bold text-success">{formatCurrency(totalInvested)}</h3>
+                    </div>
+                    <div className="p-3 bg-success-light rounded-md">
+                      <TrendingUp className="h-6 w-6 text-success" />
+                    </div>
+                  </div>
                 </div>
-                <div className="p-3 bg-success-light rounded-md">
-                  <TrendingUp className="h-6 w-6 text-success" />
-                </div>
-              </div>
-            </div>
 
-            <div className="card border-l-4 border-l-warning p-6">
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Next Payment Due</p>
-                  <h3 className="text-xl font-bold text-warning">
-                    {myChits.length > 0 ? formatCurrency(myChits[0].monthlyInstallment || 15000) : '₹0'}
-                  </h3>
+                <div className="card border-l-4 border-l-amber-600 p-6">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Total Withdrawn</p>
+                      <h3 className="text-2xl font-bold text-amber-600">
+                        {(() => {
+                          const wTotal = myChits.reduce((sum: number, c: any) => sum + (c.isWithdrawn ? Number(c.withdrawnAmount || 0) : 0), 0) +
+                            pendingWithdrawals.filter((w: any) => w.status === 'DISBURSED').reduce((sum: number, w: any) => sum + Number(w.eligibleAmount || 0), 0);
+                          return formatCurrency(wTotal);
+                        })()}
+                      </h3>
+                    </div>
+                    <div className="p-3 bg-amber-100 rounded-md">
+                      <Award className="h-6 w-6 text-amber-700" />
+                    </div>
+                  </div>
+                  <div className="mt-4 text-xs font-semibold text-neutral-500 flex items-center justify-between">
+                    <span>Prize Claims: {pendingWithdrawals.length}</span>
+                    {pendingWithdrawals.some((w: any) => w.status === 'PENDING_ADMIN_DISBURSAL') && (
+                      <span className="text-amber-600 font-bold flex items-center">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse mr-1"></span> Pending Review
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <div className="p-3 bg-warning-light rounded-md">
-                  <CreditCard className="h-6 w-6 text-warning" />
+
+                <div className="card border-l-4 border-l-warning p-6">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Next Payment Due</p>
+                      <h3 className="text-xl font-bold text-warning">
+                        {myChits.length > 0 ? formatCurrency(myChits[0].monthlyInstallment || 15000) : '₹0'}
+                      </h3>
+                    </div>
+                    <div className="p-3 bg-warning-light rounded-md">
+                      <CreditCard className="h-6 w-6 text-warning" />
+                    </div>
+                  </div>
+                  <div className="mt-4 text-sm text-neutral-500 flex items-center">
+                    <Calendar className="w-4 h-4 mr-1" />
+                    Due on: {myChits.length > 0 && myChits[0].dueDate ? new Date(myChits[0].dueDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A'}
+                  </div>
                 </div>
               </div>
-              <div className="mt-4 text-sm text-neutral-500 flex items-center">
-                <Calendar className="w-4 h-4 mr-1" />
-                Due on: {myChits.length > 0 && myChits[0].dueDate ? new Date(myChits[0].dueDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A'}
-              </div>
-            </div>
-          </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
@@ -446,6 +572,71 @@ export const CustomerDashboard = () => {
                           );
                         })()}
                       </div>
+                    </div>
+
+                    {/* Prize Money & Withdrawal Eligibility Card Section */}
+                    <div className="border-t border-neutral-200/70 p-4 bg-gradient-to-r from-amber-50/50 via-white to-amber-50/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      {(() => {
+                        const chitVal = chit.chitValue || chit.amount || 100000;
+                        const prizeVal = chitVal * 0.95;
+                        const wReq = pendingWithdrawals.find((w: any) => w.groupId === chit.groupId);
+                        const isDisbursed = chit.isWithdrawn || (wReq && wReq.status === 'DISBURSED');
+                        const isPending = wReq && wReq.status === 'PENDING_ADMIN_DISBURSAL';
+
+                        return (
+                          <>
+                            <div className="flex items-center gap-3">
+                              <div className={`p-2.5 rounded-xl shrink-0 ${isDisbursed ? 'bg-emerald-100 text-emerald-700' : isPending ? 'bg-amber-100 text-amber-700' : 'bg-amber-100/70 text-amber-800'}`}>
+                                <Award className="w-5 h-5" />
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-bold uppercase tracking-wider text-neutral-600">Chit Prize Money (Withdrawal)</span>
+                                  {isDisbursed ? (
+                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                                      Disbursed ✓
+                                    </span>
+                                  ) : isPending ? (
+                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 flex items-center gap-1">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                                      Claim Submitted
+                                    </span>
+                                  ) : (
+                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800">
+                                      Eligible to Withdraw
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-sm font-semibold text-neutral-800 mt-0.5">
+                                  Net Prize: <span className="text-primary-900 font-black">{formatCurrency(prizeVal)}</span>
+                                  <span className="text-xs font-normal text-neutral-400 ml-1.5">(95% pool after 5% foreman fee)</span>
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 sm:self-center">
+                              {isDisbursed ? (
+                                <span className="inline-flex items-center text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-200">
+                                  <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
+                                  Paid to A/C {wReq?.disbursedRef ? `(${wReq.disbursedRef})` : ''}
+                                </span>
+                              ) : isPending ? (
+                                <span className="inline-flex items-center text-xs font-semibold text-amber-700 bg-amber-50 px-3 py-1.5 rounded-lg border border-amber-200">
+                                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse mr-1.5"></span>
+                                  Pending Admin Disbursal ({wReq.payoutMethod})
+                                </span>
+                              ) : (
+                                <button
+                                  onClick={() => handleOpenWithdraw(chit)}
+                                  className="bg-amber-600 hover:bg-amber-700 text-white px-3.5 py-1.5 rounded-lg text-xs font-bold shadow-sm transition-colors flex items-center gap-1.5"
+                                >
+                                  <Award className="w-3.5 h-3.5" /> Claim Prize / Withdraw
+                                </button>
+                              )}
+                            </div>
+                          </>
+                        );
+                      })()}
                     </div>
                   </div>
                   );
@@ -606,6 +797,179 @@ export const CustomerDashboard = () => {
                     className="px-6 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-sm font-bold shadow-sm transition-colors disabled:opacity-50"
                   >
                     {paySubmitting ? 'Submitting...' : 'Submit for Verification'}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Customer Prize Withdrawal / Claim Modal */}
+      {withdrawModalChit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl border border-neutral-200 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-150">
+            <div className="px-6 py-4 bg-amber-700 text-white flex justify-between items-center">
+              <div>
+                <h3 className="font-bold text-lg flex items-center gap-2">
+                  <Award className="w-5 h-5 text-amber-200" />
+                  Claim Chit Prize Money
+                </h3>
+                <p className="text-xs text-amber-100 mt-0.5">
+                  Group: {withdrawModalChit.groupName || withdrawModalChit.groupId} · Ticket #{withdrawModalChit.ticketNumber}
+                </p>
+              </div>
+              <button 
+                onClick={() => setWithdrawModalChit(null)} 
+                className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            {withdrawSuccessMsg ? (
+              <div className="p-8 text-center space-y-3">
+                <div className="w-14 h-14 mx-auto rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-2xl font-bold">
+                  ✓
+                </div>
+                <h4 className="text-lg font-bold text-neutral-800">Claim Submitted Successfully!</h4>
+                <p className="text-sm text-neutral-600">{withdrawSuccessMsg}</p>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmitWithdrawal} className="p-6 space-y-4">
+                {/* Prize Breakdown Banner */}
+                <div className="p-4 bg-amber-50/70 rounded-xl border border-amber-200">
+                  <div className="flex justify-between items-center pb-2 border-b border-amber-200/60 text-xs">
+                    <span className="text-neutral-600">Total Chit Value</span>
+                    <span className="font-bold text-neutral-800">
+                      {formatCurrency(withdrawModalChit.chitValue || withdrawModalChit.amount || 100000)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center py-1.5 border-b border-amber-200/60 text-xs">
+                    <span className="text-neutral-500">Foreman Commission (5%)</span>
+                    <span className="text-danger font-semibold">
+                      - {formatCurrency((withdrawModalChit.chitValue || withdrawModalChit.amount || 100000) * 0.05)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center pt-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-amber-900">Net Prize Payout</span>
+                    <span className="text-xl font-black text-amber-800">
+                      {formatCurrency((withdrawModalChit.chitValue || withdrawModalChit.amount || 100000) * 0.95)}
+                    </span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-neutral-600 mb-1.5">
+                    Receiving Payout Method
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    {(['Bank Transfer', 'UPI'] as const).map(method => (
+                      <button
+                        key={method}
+                        type="button"
+                        onClick={() => setWithdrawPayoutMethod(method)}
+                        className={`py-2.5 px-3 text-xs font-bold rounded-lg border text-center transition-all flex items-center justify-center gap-2 ${
+                          withdrawPayoutMethod === method
+                            ? 'bg-primary-900 text-white border-primary-900 shadow-sm'
+                            : 'bg-neutral-50 text-neutral-700 border-neutral-200 hover:bg-neutral-100'
+                        }`}
+                      >
+                        {method === 'Bank Transfer' ? <Building2 className="w-4 h-4" /> : <Wallet className="w-4 h-4" />}
+                        {method}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {withdrawPayoutMethod === 'Bank Transfer' ? (
+                  <div className="space-y-3 p-3.5 bg-neutral-50 rounded-xl border border-neutral-200">
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-neutral-600 mb-1">
+                        Bank Name
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. State Bank of India / HDFC Bank"
+                        value={bankName}
+                        onChange={(e) => setBankName(e.target.value)}
+                        className="w-full px-3 py-2 bg-white border border-neutral-300 rounded-lg text-xs font-semibold text-neutral-900 focus:border-primary-600 focus:outline-none"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-bold uppercase tracking-wider text-neutral-600 mb-1">
+                          Account Number <span className="text-danger">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="Bank A/C number"
+                          value={accNo}
+                          onChange={(e) => setAccNo(e.target.value)}
+                          className="w-full px-3 py-2 bg-white border border-neutral-300 rounded-lg text-xs font-mono font-semibold text-neutral-900 focus:border-primary-600 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold uppercase tracking-wider text-neutral-600 mb-1">
+                          IFSC Code <span className="text-danger">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="e.g. SBIN0001234"
+                          value={ifsc}
+                          onChange={(e) => setIfsc(e.target.value.toUpperCase())}
+                          className="w-full px-3 py-2 bg-white border border-neutral-300 rounded-lg text-xs font-mono font-semibold uppercase text-neutral-900 focus:border-primary-600 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-neutral-600 mb-1">
+                        Account Holder Name
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Full name as in passbook"
+                        value={holderName}
+                        onChange={(e) => setHolderName(e.target.value)}
+                        className="w-full px-3 py-2 bg-white border border-neutral-300 rounded-lg text-xs font-semibold text-neutral-900 focus:border-primary-600 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-3.5 bg-neutral-50 rounded-xl border border-neutral-200">
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-neutral-600 mb-1">
+                      UPI ID (VPA) <span className="text-danger">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. yourname@oksbi or 9876543210@paytm"
+                      value={upiId}
+                      onChange={(e) => setUpiId(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-neutral-300 rounded-lg text-xs font-mono font-semibold text-neutral-900 focus:border-primary-600 focus:outline-none"
+                    />
+                    <p className="text-[11px] text-neutral-500 mt-1.5">
+                      Ensure your UPI ID is linked to your active bank account.
+                    </p>
+                  </div>
+                )}
+
+                <div className="pt-3 border-t border-neutral-100 flex items-center justify-end space-x-3">
+                  <button
+                    type="button"
+                    onClick={() => setWithdrawModalChit(null)}
+                    className="px-4 py-2 border border-neutral-200 text-neutral-600 rounded-lg text-sm font-semibold hover:bg-neutral-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={withdrawSubmitting}
+                    className="px-6 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm font-bold shadow-sm transition-colors disabled:opacity-50"
+                  >
+                    {withdrawSubmitting ? 'Submitting...' : 'Submit Withdrawal Claim'}
                   </button>
                 </div>
               </form>

@@ -5,7 +5,7 @@ import { formatCurrency, formatDate } from '../../../utils/format';
 import { 
   User, Phone, MapPin, Building, 
   Wallet, FileText, AlertCircle, CheckCircle2,
-  Calendar, Mail, CreditCard, Activity, ArrowUpRight, ArrowDownRight, Clock, Layers, X, Users, BookOpen, Download
+  Calendar, Mail, CreditCard, Activity, ArrowUpRight, ArrowDownRight, Clock, Layers, X, Users, BookOpen, Download, Award
 } from 'lucide-react';
 import { cn } from '../../../utils/cn';
 import { fetchClient } from '../../../api/client';
@@ -16,14 +16,165 @@ export const CustomerProfile = () => {
   const [customer, setCustomer] = useState<any>(null);
   const [referralCount, setReferralCount] = useState(0);
 
+  // Receive Payment Modal States
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [selectedChitForPayment, setSelectedChitForPayment] = useState('');
   const [paymentMode, setPaymentMode] = useState('Cash');
 
+  // Disburse / Withdraw Modal States
+  const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
+  const [selectedChitForWithdraw, setSelectedChitForWithdraw] = useState<any>(null);
+  const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [withdrawMode, setWithdrawMode] = useState('Bank Transfer');
+  const [withdrawRef, setWithdrawRef] = useState('');
+  const [withdrawNotes, setWithdrawNotes] = useState('');
+  const [disbursalSuccessMsg, setDisbursalSuccessMsg] = useState<string | null>(null);
+
+  // Helper to resolve chits from all local and group sources
+  const resolveChitsForCustomer = (custTarget: any, targetId: string) => {
+    let chits: any[] = Array.isArray(custTarget?.chits) ? [...custTarget.chits] : [];
+    const phone = (custTarget?.phone || custTarget?.mobile || '').replace(/\D/g, '');
+
+    // 1. Check local mockCustomers
+    const saved = localStorage.getItem('mockCustomers');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      const local = parsed.find((c: any) => {
+        const cPhone = (c.mobile || c.phone || '').replace(/\D/g, '');
+        return c.id === targetId || c.mongoId === targetId || c.customerCode === targetId || (phone && cPhone === phone);
+      });
+      if (local?.chits && Array.isArray(local.chits)) {
+        local.chits.forEach((ch: any) => {
+          if (!chits.some(existing => existing.groupId === ch.groupId)) {
+            chits.push(ch);
+          }
+        });
+      }
+    }
+
+    // 2. Check chitGroupMemberships
+    const memberships = JSON.parse(localStorage.getItem('chitGroupMemberships') || '[]');
+    memberships.forEach((m: any) => {
+      const mPhone = (m.mobile || m.phone || '').replace(/\D/g, '');
+      if (
+        m.customerId === targetId ||
+        m.customerId === custTarget?.customerCode ||
+        m.customerId === custTarget?.id ||
+        (phone && mPhone === phone)
+      ) {
+        if (!chits.some(existing => existing.groupId === m.groupId)) {
+          chits.push({
+            groupId: m.groupId,
+            groupName: m.groupName || m.groupId,
+            scheme: m.scheme || 'Fixed Chit Plan',
+            ticketNumber: m.ticketNumber || '1',
+            chitValue: m.chitValue || 100000,
+            monthlyInstallment: m.monthlyInstallment || 5000,
+            dueDate: m.dueDate,
+            joiningDate: m.joiningDate || new Date().toISOString(),
+            paymentStatus: m.paymentStatus || 'PAID',
+            status: m.status || 'Active',
+            isWithdrawn: m.isWithdrawn || false,
+            withdrawnAmount: m.withdrawnAmount || 0,
+            withdrawnAt: m.withdrawnAt || null
+          });
+        }
+      }
+    });
+
+    // 3. Check mockChitGroups enrolledMembers
+    const groups = JSON.parse(localStorage.getItem('mockChitGroups') || '[]');
+    groups.forEach((g: any) => {
+      if (Array.isArray(g.enrolledMembers)) {
+        g.enrolledMembers.forEach((m: any) => {
+          const mPhone = (m.mobile || m.phone || '').replace(/\D/g, '');
+          if (
+            m.customerId === targetId ||
+            m.customerId === custTarget?.customerCode ||
+            m.customerId === custTarget?.id ||
+            (phone && mPhone === phone)
+          ) {
+            const grpCode = g.code || g.id;
+            if (!chits.some(existing => existing.groupId === grpCode)) {
+              chits.push({
+                groupId: grpCode,
+                groupName: g.name || grpCode,
+                scheme: g.scheme || 'Chit Plan',
+                ticketNumber: m.ticketNumber || '1',
+                chitValue: g.chitValue || m.chitValue || 100000,
+                monthlyInstallment: g.monthlyInstallment || m.monthlyInstallment || 5000,
+                dueDate: m.dueDate,
+                joiningDate: m.joiningDate || new Date().toISOString(),
+                paymentStatus: m.paymentStatus || 'PAID',
+                status: m.status || 'Active',
+                isWithdrawn: m.isWithdrawn || false,
+                withdrawnAmount: m.withdrawnAmount || 0,
+                withdrawnAt: m.withdrawnAt || null
+              });
+            }
+          }
+        });
+      }
+    });
+
+    // 4. Check ledger transactions referencing groups (e.g. TC-73071 / FIXED-...)
+    const ledger = JSON.parse(localStorage.getItem('ledgerTransactions') || '[]');
+    ledger.forEach((tx: any) => {
+      const ref = tx.reference || '';
+      if ((ref.includes(targetId) || (custTarget?.customerCode && ref.includes(custTarget.customerCode))) && ref.includes(' / ')) {
+        const parts = ref.split(' / ');
+        const grpCode = parts[1]?.trim();
+        if (grpCode && !chits.some(existing => existing.groupId === grpCode)) {
+          chits.push({
+            groupId: grpCode,
+            groupName: grpCode,
+            scheme: grpCode.includes('FIXED') ? 'Fixed Chit Plan' : 'Auction Chit Plan',
+            ticketNumber: '1',
+            chitValue: 100000,
+            monthlyInstallment: 5000,
+            joiningDate: tx.date || new Date().toISOString(),
+            paymentStatus: 'PAID',
+            status: 'Active',
+            isWithdrawn: false,
+            withdrawnAmount: 0
+          });
+        }
+      }
+    });
+
+    return chits;
+  };
+
   useEffect(() => {
     const loadCustomer = async () => {
       if (!id) return;
+
+      // Calculate total verified payments directly from ledger transactions
+      const ledger = JSON.parse(localStorage.getItem('ledgerTransactions') || '[]');
+      const customerLedgerCredits = ledger.filter((t: any) => 
+        (t.type === 'CREDIT' || t.category === 'INSTALLMENT') && 
+        (t.customerId === id || t.reference?.includes(id) || t.description?.includes(id))
+      );
+      const ledgerTotalPaid = customerLedgerCredits.reduce((sum: number, t: any) => sum + (Number(t.amount) || 0), 0);
+
+      const customerLedgerDebits = ledger.filter((t: any) => 
+        t.type === 'DEBIT' && 
+        (t.customerId === id || t.reference?.includes(id) || t.description?.includes(id))
+      );
+      const ledgerTotalWithdrawn = customerLedgerDebits.reduce((sum: number, t: any) => sum + (Number(t.amount) || 0), 0);
+
+      // Local storage fallback data
+      const saved = localStorage.getItem('mockCustomers');
+      let localFound: any = null;
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        localFound = parsed.find((c: any) => c.id === id || c.mongoId === id || c.customerCode === id);
+        if (localFound) {
+          const referrals = parsed.filter((c: any) => c.referredBy === localFound.id);
+          setReferralCount(referrals.length);
+        }
+      }
 
       // 1. Try fetching from MongoDB
       try {
@@ -31,9 +182,17 @@ export const CustomerProfile = () => {
         if (res && res.data && Array.isArray(res.data) && res.data.length > 0) {
           const found = res.data.find((c: any) => c.customerCode === id || c._id === id) || res.data[0];
           if (found) {
-            setCustomer({
+            const resolvedChits = resolveChitsForCustomer(found, id);
+            const trueTotalPaid = Math.max(Number(found.totalPaid || 0), Number(localFound?.totalPaid || 0), ledgerTotalPaid);
+            const trueWithdrawn = Math.max(
+              resolvedChits.filter((ch: any) => ch.isWithdrawn).reduce((sum: number, ch: any) => sum + Number(ch.withdrawnAmount || 0), 0),
+              ledgerTotalWithdrawn
+            );
+
+            const customerObj = {
               id: found.customerCode || found._id,
               mongoId: found._id,
+              customerCode: found.customerCode,
               name: found.fullName || found.name,
               mobile: found.phone || found.mobile,
               address: found.address,
@@ -41,12 +200,27 @@ export const CustomerProfile = () => {
               pan: found.pan || '—',
               branch: found.branchId?.branchName || 'Head Office',
               agent: found.assignedAgentId?.name || 'System Admin',
-              totalPaid: found.totalPaid || 0,
-              pending: found.pending || 0,
-              activeChits: found.chits?.length || 0,
-              chits: found.chits || [],
+              totalPaid: trueTotalPaid,
+              pending: found.pending !== undefined ? found.pending : (localFound?.pending || 0),
+              activeChits: resolvedChits.length,
+              chits: resolvedChits,
+              withdrawnAmount: trueWithdrawn,
               status: found.status || 'ACTIVE'
-            });
+            };
+
+            setCustomer(customerObj);
+
+            // Auto-heal MongoDB record if it was out of sync
+            if (trueTotalPaid > Number(found.totalPaid || 0) || resolvedChits.length > Number(found.chits?.length || 0)) {
+              fetchClient(`/customers/${found._id || found.customerCode || id}`, {
+                method: 'PATCH',
+                body: JSON.stringify({
+                  totalPaid: trueTotalPaid,
+                  chits: resolvedChits
+                })
+              }).catch(err => console.warn('Could not auto-sync customer to MongoDB:', err));
+            }
+
             return;
           }
         }
@@ -54,60 +228,145 @@ export const CustomerProfile = () => {
         console.warn('Could not fetch customer profile from API:', err);
       }
 
-      // 2. Fallback to localStorage
-      const saved = localStorage.getItem('mockCustomers');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        const found = parsed.find((c: any) => c.id === id || c.mongoId === id);
-        if (found) {
-          setCustomer(found);
-          const referrals = parsed.filter((c: any) => c.referredBy === found.id);
-          setReferralCount(referrals.length);
-        }
+      // 2. Fallback to localStorage if API unavailable
+      if (localFound) {
+        const resolvedChits = resolveChitsForCustomer(localFound, id);
+        const trueTotalPaid = Math.max(Number(localFound.totalPaid || 0), ledgerTotalPaid);
+        setCustomer({
+          ...localFound,
+          totalPaid: trueTotalPaid,
+          chits: resolvedChits,
+          activeChits: resolvedChits.length,
+          withdrawnAmount: ledgerTotalWithdrawn
+        });
       }
     };
 
     loadCustomer();
+    window.addEventListener('storage', loadCustomer);
+    const interval = setInterval(loadCustomer, 4000);
+    return () => {
+      window.removeEventListener('storage', loadCustomer);
+      clearInterval(interval);
+    };
   }, [id]);
 
-  const handleWithdraw = (chitId: string, ticketNumber: string) => {
-    if (!customer) return;
-    
-    // Calculate new chits
+  // Open Disbursal / Withdrawal Modal
+  const openWithdrawModal = (chit: any) => {
+    const chitVal = Number(chit.chitValue || chit.amount || 100000);
+    const eligibleAmount = Math.round(chitVal * 0.95);
+    setSelectedChitForWithdraw(chit);
+    setWithdrawAmount(String(eligibleAmount));
+    setWithdrawMode('Bank Transfer');
+    setWithdrawRef('');
+    setWithdrawNotes('');
+    setIsWithdrawModalOpen(true);
+  };
+
+  // Confirm Withdrawal & Disburse Prize Money
+  const handleConfirmWithdrawal = () => {
+    if (!customer || !selectedChitForWithdraw || !withdrawAmount || isNaN(Number(withdrawAmount))) {
+      alert('Please enter a valid withdrawal amount.');
+      return;
+    }
+
+    const amount = Number(withdrawAmount);
+    const payoutRefNo = withdrawRef.trim() || `DISB-${Date.now().toString().slice(-6)}`;
+
+    // 1. Update customer chits
     const updatedChits = customer.chits.map((c: any) => {
-      if (c.groupId === chitId && c.ticketNumber === ticketNumber) {
-        if (c.isWithdrawn) return c; // Already withdrawn
-        
-        // 95% is the base eligible withdrawal amount, plus 1000 for each month since joining
-        const chitValue = c.chitValue || c.amount || 0;
-        const joinedDate = new Date(c.joinedAt || c.joiningDate || Date.now());
-        const monthsSinceJoin = Math.max(0, Math.floor((Date.now() - joinedDate.getTime()) / (1000 * 60 * 60 * 24 * 30)));
-        const withdrawalAmount = (chitValue * 0.95) + (monthsSinceJoin * 1000);
-        
-        // Additional 1% for next month
-        const additionalInstallment = chitValue * 0.01;
-        const currentInstallment = c.monthlyInstallment || additionalInstallment;
-        
+      if (c.groupId === selectedChitForWithdraw.groupId) {
         return {
           ...c,
           isWithdrawn: true,
-          withdrawnAmount: withdrawalAmount,
-          monthlyInstallment: currentInstallment + additionalInstallment,
+          withdrawnAmount: amount,
+          withdrawnAt: new Date().toISOString(),
+          payoutMode: withdrawMode,
+          payoutRef: payoutRefNo,
           status: 'Withdrawn'
         };
       }
       return c;
     });
 
-    const updatedCustomer = { ...customer, chits: updatedChits };
+    const updatedCustomer = {
+      ...customer,
+      chits: updatedChits,
+      withdrawnAmount: (Number(customer.withdrawnAmount || 0)) + amount
+    };
     setCustomer(updatedCustomer);
 
+    // 2. Add DEBIT record to ledgerTransactions
+    const ledger = JSON.parse(localStorage.getItem('ledgerTransactions') || '[]');
+    const newTxn = {
+      id: `DISB-${Date.now().toString().slice(-6)}`,
+      date: new Date().toISOString(),
+      reference: `${displayId} / ${selectedChitForWithdraw.groupId}`,
+      description: `Prize Money Disbursal / Withdrawal (${withdrawMode} Ref: ${payoutRefNo})`,
+      amount: amount,
+      type: 'DEBIT',
+      category: 'DISBURSAL',
+      customerName: displayName,
+      customerId: displayId,
+      groupId: selectedChitForWithdraw.groupId,
+      status: 'DISBURSED'
+    };
+    localStorage.setItem('ledgerTransactions', JSON.stringify([newTxn, ...ledger]));
+
+    // 3. Update mockCustomers
     const saved = localStorage.getItem('mockCustomers');
     if (saved) {
       const parsed = JSON.parse(saved);
-      const newCustomers = parsed.map((c: any) => c.id === customer.id ? updatedCustomer : c);
+      const newCustomers = parsed.map((c: any) => (c.id === displayId || c.mongoId === displayId) ? updatedCustomer : c);
       localStorage.setItem('mockCustomers', JSON.stringify(newCustomers));
     }
+
+    // 4. Update chitGroupMemberships
+    const memberships = JSON.parse(localStorage.getItem('chitGroupMemberships') || '[]');
+    const updatedMemberships = memberships.map((m: any) => {
+      if ((m.customerId === displayId || m.customerId === customer?.customerCode) && m.groupId === selectedChitForWithdraw.groupId) {
+        return {
+          ...m,
+          isWithdrawn: true,
+          withdrawnAmount: amount,
+          withdrawnAt: new Date().toISOString(),
+          status: 'Withdrawn'
+        };
+      }
+      return m;
+    });
+    localStorage.setItem('chitGroupMemberships', JSON.stringify(updatedMemberships));
+
+    // 5. Update any pending customer withdrawal request
+    const wReqs = JSON.parse(localStorage.getItem('withdrawalRequests') || '[]');
+    const updatedWReqs = wReqs.map((r: any) => {
+      if (r.customerId === displayId && r.groupId === selectedChitForWithdraw.groupId && r.status === 'PENDING_ADMIN_DISBURSAL') {
+        return {
+          ...r,
+          status: 'DISBURSED',
+          disbursedAt: new Date().toISOString(),
+          disbursedRef: payoutRefNo
+        };
+      }
+      return r;
+    });
+    localStorage.setItem('withdrawalRequests', JSON.stringify(updatedWReqs));
+
+    // 6. Sync to backend MongoDB
+    const targetMongoId = customer.mongoId || customer.id || id;
+    if (targetMongoId) {
+      fetchClient(`/customers/${targetMongoId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          chits: updatedChits
+        })
+      }).catch(err => console.warn('Could not sync chit withdrawal to MongoDB:', err));
+    }
+
+    window.dispatchEvent(new Event('storage'));
+    setIsWithdrawModalOpen(false);
+    setDisbursalSuccessMsg(`Prize money of ₹${amount.toLocaleString('en-IN')} disbursed successfully to ${displayName}! (Ref: ${payoutRefNo})`);
+    setTimeout(() => setDisbursalSuccessMsg(null), 5000);
   };
 
   const handleReceivePayment = () => {
@@ -120,18 +379,24 @@ export const CustomerProfile = () => {
     const newTxn = {
       id: 'REC-' + Date.now().toString().slice(-6),
       date: new Date().toISOString(),
-      reference: selectedChitForPayment ? `${customer.id} - ${selectedChitForPayment}` : customer.id,
+      reference: selectedChitForPayment ? `${customer.id} / ${selectedChitForPayment}` : customer.id,
       description: `Installment Payment (${paymentMode})`,
       amount: amount,
-      type: 'CREDIT'
+      type: 'CREDIT',
+      category: 'INSTALLMENT',
+      customerName: displayName,
+      customerId: displayId,
+      status: 'VERIFIED'
     };
     localStorage.setItem('ledgerTransactions', JSON.stringify([newTxn, ...ledger]));
 
     // Update customer totalPaid
+    const newTotalPaid = (customer.totalPaid || 0) + amount;
+    const newPending = Math.max(0, (customer.pending || 0) - amount);
     const updatedCustomer = {
       ...customer,
-      totalPaid: (customer.totalPaid || 0) + amount,
-      pending: Math.max(0, (customer.pending || 0) - amount)
+      totalPaid: newTotalPaid,
+      pending: newPending
     };
     
     setCustomer(updatedCustomer);
@@ -143,6 +408,19 @@ export const CustomerProfile = () => {
       localStorage.setItem('mockCustomers', JSON.stringify(newCustomers));
     }
 
+    // Sync to backend MongoDB
+    const targetMongoId = customer.mongoId || customer.id || id;
+    if (targetMongoId) {
+      fetchClient(`/customers/${targetMongoId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          totalPaid: newTotalPaid,
+          pending: newPending
+        })
+      }).catch(err => console.warn('Could not sync payment to MongoDB:', err));
+    }
+
+    window.dispatchEvent(new Event('storage'));
     setIsPaymentModalOpen(false);
     setPaymentAmount('');
     setSelectedChitForPayment('');
@@ -154,10 +432,9 @@ export const CustomerProfile = () => {
   const displayPhone = customer?.mobile || customer?.phone || 'N/A';
   const displayEmail = customer?.email || 'N/A';
   const displayAddress = customer?.address || 'N/A';
-  const displayAadhar = customer?.aadhar || 'N/A';
-  const displayPan = customer?.pan || 'N/A';
+  const displayAadhar = customer?.aadhar || '—';
+  const displayPan = customer?.pan || '—';
 
-  const displayTotalPaid = customer?.totalPaid || 0;
   const displayPending = customer?.pending || 0;
   const displayActiveChits = customer?.chits?.length || customer?.activeChits || 0;
   const displayAgent = customer?.agent || 'System Admin';
@@ -166,7 +443,7 @@ export const CustomerProfile = () => {
   const recentActivity = (() => {
     const ledger = JSON.parse(localStorage.getItem('ledgerTransactions') || '[]');
     return ledger.filter((t: any) => 
-      (displayId !== 'N/A' && (t.reference?.includes(displayId) || t.description?.includes(displayId)))
+      (displayId !== 'N/A' && (t.reference?.includes(displayId) || t.description?.includes(displayId) || t.customerId === displayId))
     ).map((t: any) => ({
       title: t.description || 'Payment Transaction',
       amount: t.amount,
@@ -175,6 +452,16 @@ export const CustomerProfile = () => {
       type: t.type === 'CREDIT' ? 'credit' : 'debit'
     }));
   })();
+
+  // Direct calculation of verified total paid & total withdrawn from ledger and state
+  const ledgerTotalPaid = recentActivity.filter((a: any) => a.type === 'credit').reduce((s: number, a: any) => s + (Number(a.amount) || 0), 0);
+  const displayTotalPaid = Math.max(Number(customer?.totalPaid || 0), ledgerTotalPaid);
+
+  const ledgerTotalWithdrawn = recentActivity.filter((a: any) => a.type === 'debit').reduce((s: number, a: any) => s + (Number(a.amount) || 0), 0);
+  const chitsWithdrawnSum = Array.isArray(customer?.chits) 
+    ? customer.chits.filter((c: any) => c.isWithdrawn).reduce((s: number, c: any) => s + (Number(c.withdrawnAmount) || 0), 0)
+    : 0;
+  const displayTotalWithdrawn = Math.max(Number(customer?.withdrawnAmount || 0), chitsWithdrawnSum, ledgerTotalWithdrawn);
 
   const tabs = [
     { id: 'overview', name: 'Overview' },
@@ -301,53 +588,80 @@ export const CustomerProfile = () => {
 
         {activeTab === 'overview' && (
           <div className="space-y-6">
+            {/* SUCCESS BANNER FOR DISBURSAL */}
+            {disbursalSuccessMsg && (
+              <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 px-5 py-3.5 rounded-xl shadow-sm flex items-center justify-between animate-in fade-in">
+                <div className="flex items-center gap-2.5">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                  <p className="text-sm font-bold">{disbursalSuccessMsg}</p>
+                </div>
+                <button onClick={() => setDisbursalSuccessMsg(null)} className="text-emerald-700 hover:text-emerald-950 text-xs font-bold">
+                  Dismiss
+                </button>
+              </div>
+            )}
+
             {/* KPI Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-5">
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-neutral-200 relative overflow-hidden group">
-                <div className="absolute right-0 top-0 w-24 h-24 bg-gradient-to-bl from-primary-50 to-transparent opacity-50 rounded-bl-full transform group-hover:scale-110 transition-transform duration-500"></div>
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-2.5 bg-primary-50 text-primary-900 rounded-xl">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+              <div className="bg-white p-5 rounded-xl shadow-sm border border-neutral-200 relative overflow-hidden group">
+                <div className="absolute right-0 top-0 w-20 h-20 bg-gradient-to-bl from-primary-50 to-transparent opacity-50 rounded-bl-full transform group-hover:scale-110 transition-transform duration-500"></div>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="p-2 bg-primary-50 text-primary-900 rounded-lg">
                     <Activity className="w-5 h-5" />
                   </div>
                 </div>
                 <p className="text-xs font-bold text-neutral-500 uppercase tracking-wider mb-1">Active Chits</p>
-                <h4 className="text-3xl font-bold text-neutral-900">{displayActiveChits}</h4>
+                <h4 className="text-2xl font-bold text-neutral-900">{displayActiveChits}</h4>
               </div>
 
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-neutral-200 relative overflow-hidden group">
-                <div className="absolute right-0 top-0 w-24 h-24 bg-gradient-to-bl from-success-light/50 to-transparent opacity-50 rounded-bl-full transform group-hover:scale-110 transition-transform duration-500"></div>
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-2.5 bg-success-light text-success rounded-xl">
+              <div className="bg-white p-5 rounded-xl shadow-sm border border-neutral-200 relative overflow-hidden group">
+                <div className="absolute right-0 top-0 w-20 h-20 bg-gradient-to-bl from-success-light/50 to-transparent opacity-50 rounded-bl-full transform group-hover:scale-110 transition-transform duration-500"></div>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="p-2 bg-success-light text-success rounded-lg">
                     <Wallet className="w-5 h-5" />
                   </div>
                 </div>
                 <p className="text-xs font-bold text-neutral-500 uppercase tracking-wider mb-1">Total Paid</p>
-                <h4 className="text-3xl font-bold text-neutral-900">{formatCurrency(displayTotalPaid)}</h4>
+                <h4 className="text-2xl font-bold text-neutral-900">{formatCurrency(displayTotalPaid)}</h4>
               </div>
 
-              <div className={cn("bg-white p-6 rounded-xl shadow-sm border relative overflow-hidden group", displayPending > 0 ? "border-danger-200" : "border-neutral-200")}>
-                <div className={cn("absolute right-0 top-0 w-24 h-24 bg-gradient-to-bl to-transparent opacity-50 rounded-bl-full transform group-hover:scale-110 transition-transform duration-500", displayPending > 0 ? "from-danger-100" : "from-neutral-100")}></div>
-                <div className="flex items-center justify-between mb-4">
-                  <div className={cn("p-2.5 rounded-xl", displayPending > 0 ? "bg-danger-light text-danger" : "bg-neutral-100 text-neutral-400")}>
+              <div className={cn("bg-white p-5 rounded-xl shadow-sm border relative overflow-hidden group", displayPending > 0 ? "border-danger-200" : "border-neutral-200")}>
+                <div className={cn("absolute right-0 top-0 w-20 h-20 bg-gradient-to-bl to-transparent opacity-50 rounded-bl-full transform group-hover:scale-110 transition-transform duration-500", displayPending > 0 ? "from-danger-100" : "from-neutral-100")}></div>
+                <div className="flex items-center justify-between mb-3">
+                  <div className={cn("p-2 rounded-lg", displayPending > 0 ? "bg-danger-light text-danger" : "bg-neutral-100 text-neutral-400")}>
                     <AlertCircle className="w-5 h-5" />
                   </div>
-                  {displayPending > 0 && <span className="text-xs font-bold bg-danger-light text-danger px-2.5 py-1 rounded-full border border-danger-200">Action Req</span>}
+                  {displayPending > 0 && <span className="text-[10px] font-bold bg-danger-light text-danger px-2 py-0.5 rounded-full border border-danger-200">Action Req</span>}
                 </div>
                 <p className="text-xs font-bold text-neutral-500 uppercase tracking-wider mb-1">Total Pending</p>
-                <h4 className={cn("text-3xl font-bold", displayPending > 0 ? "text-danger" : "text-neutral-900")}>
+                <h4 className={cn("text-2xl font-bold", displayPending > 0 ? "text-danger" : "text-neutral-900")}>
                   {formatCurrency(displayPending)}
                 </h4>
               </div>
 
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-neutral-200 relative overflow-hidden group">
-                <div className="absolute right-0 top-0 w-24 h-24 bg-gradient-to-bl from-primary-100 to-transparent opacity-50 rounded-bl-full transform group-hover:scale-110 transition-transform duration-500"></div>
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-2.5 bg-primary-100 text-primary-600 rounded-xl">
+              <div className="bg-white p-5 rounded-xl shadow-sm border border-amber-200 relative overflow-hidden group">
+                <div className="absolute right-0 top-0 w-20 h-20 bg-gradient-to-bl from-amber-50 to-transparent opacity-50 rounded-bl-full transform group-hover:scale-110 transition-transform duration-500"></div>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="p-2 bg-amber-50 text-amber-700 rounded-lg">
+                    <Award className="w-5 h-5" />
+                  </div>
+                  {displayTotalWithdrawn > 0 && (
+                    <span className="text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full border border-amber-300">Prize Claimed</span>
+                  )}
+                </div>
+                <p className="text-xs font-bold text-amber-700 uppercase tracking-wider mb-1">Total Withdrawn</p>
+                <h4 className="text-2xl font-bold text-amber-900">{formatCurrency(displayTotalWithdrawn)}</h4>
+              </div>
+
+              <div className="bg-white p-5 rounded-xl shadow-sm border border-neutral-200 relative overflow-hidden group">
+                <div className="absolute right-0 top-0 w-20 h-20 bg-gradient-to-bl from-primary-100 to-transparent opacity-50 rounded-bl-full transform group-hover:scale-110 transition-transform duration-500"></div>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="p-2 bg-primary-100 text-primary-600 rounded-lg">
                     <Users className="w-5 h-5" />
                   </div>
                 </div>
                 <p className="text-xs font-bold text-neutral-500 uppercase tracking-wider mb-1">Total Referrals</p>
-                <h4 className="text-3xl font-bold text-neutral-900">{referralCount}</h4>
+                <h4 className="text-2xl font-bold text-neutral-900">{referralCount}</h4>
               </div>
             </div>
 
@@ -439,35 +753,71 @@ export const CustomerProfile = () => {
                         <p className="text-lg font-black text-amber-600">{formatCurrency(chit.chitValue || chit.amount || 0)}</p>
                       </div>
 
-                      {chit.isWithdrawn ? (
-                        <div className="text-center md:text-right">
-                          <p className="text-xs font-bold text-success uppercase tracking-wider mb-1">Withdrawn</p>
-                          <p className="text-lg font-black text-success">{formatCurrency(chit.withdrawnAmount || 0)}</p>
-                        </div>
-                      ) : (
-                        <div className="text-center md:text-right">
-                          <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Eligible Withdraw</p>
-                          <p className="text-lg font-black text-primary-600">
-                            {formatCurrency(((chit.chitValue || chit.amount || 0) * 0.95) + (Math.max(0, Math.floor((Date.now() - new Date(chit.joinedAt || chit.joiningDate || Date.now()).getTime()) / (1000 * 60 * 60 * 24 * 30))) * 1000))}
-                          </p>
-                        </div>
-                      )}
-                      
-                      <div className="ml-0 md:ml-4 flex flex-col items-center gap-2">
-                        <span className={cn("px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border", 
-                          chit.isWithdrawn ? "bg-primary-100 text-primary-700 border-primary-200" : "bg-green-100 text-green-700 border-green-200")}>
-                          {chit.isWithdrawn ? 'Withdrawn' : (chit.status || 'Active')}
-                        </span>
-                        
-                        {!chit.isWithdrawn && (
-                          <button 
-                            onClick={() => handleWithdraw(chit.groupId, chit.ticketNumber)}
-                            className="text-xs bg-primary-600 text-white px-3 py-1.5 rounded-lg hover:bg-primary-700 font-semibold transition-colors whitespace-nowrap"
-                          >
-                            Withdraw Now
-                          </button>
-                        )}
-                      </div>
+                      {(() => {
+                        const wReqs = JSON.parse(localStorage.getItem('withdrawalRequests') || '[]');
+                        const hasWReq = wReqs.some((r: any) => 
+                          (r.customerId === displayId || r.customerId === customer?.customerCode) && 
+                          r.groupId === chit.groupId && 
+                          r.status === 'PENDING_ADMIN_DISBURSAL'
+                        );
+
+                        if (chit.isWithdrawn) {
+                          return (
+                            <div className="flex items-center gap-4">
+                              <div className="text-center md:text-right">
+                                <p className="text-xs font-bold text-success uppercase tracking-wider mb-1">Prize Disbursed</p>
+                                <p className="text-lg font-black text-success">{formatCurrency(chit.withdrawnAmount || 0)}</p>
+                                {chit.withdrawnAt && (
+                                  <p className="text-[11px] text-neutral-400 font-medium">{new Date(chit.withdrawnAt).toLocaleDateString('en-IN')}</p>
+                                )}
+                              </div>
+                              <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border bg-emerald-100 text-emerald-800 border-emerald-300">
+                                Disbursed
+                              </span>
+                            </div>
+                          );
+                        }
+
+                        const chitVal = Number(chit.chitValue || chit.amount || 100000);
+                        const eligible = Math.round(chitVal * 0.95);
+
+                        return (
+                          <div className="flex flex-col md:flex-row items-center gap-4">
+                            <div className="text-center md:text-right">
+                              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Eligible Withdraw</p>
+                              <p className="text-lg font-black text-primary-600">
+                                {formatCurrency(eligible)}
+                              </p>
+                              <p className="text-[10px] text-slate-400">95% Standard Prize</p>
+                            </div>
+
+                            <div className="flex flex-col items-center gap-2">
+                              {hasWReq ? (
+                                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider border bg-amber-100 text-amber-800 border-amber-300 animate-pulse">
+                                  Customer Requested
+                                </span>
+                              ) : (
+                                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider border bg-green-100 text-green-700 border-green-200">
+                                  Eligible
+                                </span>
+                              )}
+                              
+                              <button 
+                                onClick={() => openWithdrawModal(chit)}
+                                className={cn(
+                                  "text-xs px-3.5 py-1.5 rounded-lg font-bold transition-all shadow-sm flex items-center gap-1.5 whitespace-nowrap",
+                                  hasWReq 
+                                    ? "bg-amber-600 hover:bg-amber-700 text-white" 
+                                    : "bg-primary-600 hover:bg-primary-700 text-white"
+                                )}
+                              >
+                                <Award className="w-3.5 h-3.5" />
+                                {hasWReq ? 'Process Requested Disbursal' : 'Withdraw / Disburse Prize'}
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
                 ))}
@@ -710,6 +1060,128 @@ export const CustomerProfile = () => {
                   disabled={!paymentAmount || Number(paymentAmount) <= 0}
                 >
                   Confirm Payment
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Disburse Chit Prize / Withdrawal Modal */}
+      {isWithdrawModalOpen && selectedChitForWithdraw && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4 animate-in fade-in">
+          <div className="bg-white p-6 rounded-2xl shadow-xl w-full max-w-lg border border-neutral-200">
+            <div className="flex justify-between items-center mb-5 pb-3 border-b border-neutral-100">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-amber-50 text-amber-700 rounded-xl">
+                  <Award className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-neutral-900">Disburse Prize / Withdrawal</h2>
+                  <p className="text-xs text-neutral-500">Process outgoing prize payout for this chit group</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsWithdrawModalOpen(false)} 
+                className="text-neutral-400 hover:text-neutral-700 p-1 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Chit Summary Card */}
+              <div className="bg-amber-50/60 border border-amber-200 rounded-xl p-4">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-xs font-bold text-amber-800 uppercase tracking-wider">Chit Group</span>
+                  <span className="font-bold text-sm text-neutral-900 font-mono">{selectedChitForWithdraw.groupId}</span>
+                </div>
+                <div className="flex justify-between items-center text-xs text-neutral-600 mb-1">
+                  <span>Customer Name:</span>
+                  <span className="font-semibold text-neutral-900">{displayName} ({displayId})</span>
+                </div>
+                <div className="flex justify-between items-center text-xs text-neutral-600 mb-1">
+                  <span>Ticket Number:</span>
+                  <span className="font-semibold text-neutral-900">#{selectedChitForWithdraw.ticketNumber || '1'}</span>
+                </div>
+                <div className="flex justify-between items-center text-xs text-neutral-600 border-t border-amber-200/60 pt-2 mt-2">
+                  <span className="font-bold">Total Chit Value:</span>
+                  <span className="font-extrabold text-amber-900 text-sm">{formatCurrency(selectedChitForWithdraw.chitValue || selectedChitForWithdraw.amount || 100000)}</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-neutral-700 uppercase tracking-wider mb-1.5">
+                  Disbursal Amount (₹) <span className="text-danger">*</span>
+                </label>
+                <input 
+                  type="number"
+                  className="w-full border border-neutral-300 rounded-lg px-3.5 py-2.5 text-sm font-bold text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary-500 shadow-sm"
+                  value={withdrawAmount}
+                  onChange={(e) => setWithdrawAmount(e.target.value)}
+                  placeholder="e.g. 95000"
+                />
+                <p className="text-[11px] text-neutral-500 mt-1">Calculated as 95% of chit pool (foreman commission 5% deducted per standard norms).</p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-neutral-700 uppercase tracking-wider mb-1.5">
+                    Payout Mode
+                  </label>
+                  <select 
+                    className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white shadow-sm"
+                    value={withdrawMode}
+                    onChange={(e) => setWithdrawMode(e.target.value)}
+                  >
+                    <option value="Bank Transfer">Bank Transfer (NEFT/IMPS)</option>
+                    <option value="Cheque">Cheque</option>
+                    <option value="UPI">UPI / GPay / PhonePe</option>
+                    <option value="Cash">Cash</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-neutral-700 uppercase tracking-wider mb-1.5">
+                    UTR / Cheque / Txn Ref No.
+                  </label>
+                  <input 
+                    type="text"
+                    className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 shadow-sm"
+                    value={withdrawRef}
+                    onChange={(e) => setWithdrawRef(e.target.value)}
+                    placeholder="e.g. UTR129849204"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-neutral-700 uppercase tracking-wider mb-1.5">
+                  Remarks / Purpose
+                </label>
+                <input 
+                  type="text"
+                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 shadow-sm"
+                  value={withdrawNotes}
+                  onChange={(e) => setWithdrawNotes(e.target.value)}
+                  placeholder="e.g. Month 1 auction prize money disbursed"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-3 border-t border-neutral-100">
+                <button 
+                  className="px-4 py-2 text-xs font-bold text-neutral-600 hover:bg-neutral-100 rounded-lg transition-colors"
+                  onClick={() => setIsWithdrawModalOpen(false)}
+                >
+                  Cancel
+                </button>
+                <button 
+                  className="bg-primary-900 hover:bg-primary-950 text-white px-5 py-2 rounded-lg text-xs font-bold shadow-sm transition-colors flex items-center gap-1.5"
+                  onClick={handleConfirmWithdrawal}
+                  disabled={!withdrawAmount || Number(withdrawAmount) <= 0}
+                >
+                  <Award className="w-4 h-4 text-amber-300" />
+                  Confirm & Disburse Prize
                 </button>
               </div>
             </div>
