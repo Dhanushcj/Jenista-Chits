@@ -5,10 +5,12 @@ import { formatCurrency, formatDate } from '../../../utils/format';
 import { 
   User, Phone, MapPin, Building, 
   Wallet, FileText, AlertCircle, CheckCircle2,
-  Calendar, Mail, CreditCard, Activity, ArrowUpRight, ArrowDownRight, Clock, Layers, X, Users, BookOpen, Download, Award
+  Calendar, Mail, CreditCard, Activity, ArrowUpRight, ArrowDownRight, Clock, Layers, X, Users, BookOpen, Download, Award,
+  Eye, ExternalLink, Printer
 } from 'lucide-react';
 import { cn } from '../../../utils/cn';
 import { fetchClient } from '../../../api/client';
+import { printCashReceipt } from '../../../utils/receiptPrinter';
 
 export const CustomerProfile = () => {
   const { id } = useParams();
@@ -30,6 +32,7 @@ export const CustomerProfile = () => {
   const [withdrawRef, setWithdrawRef] = useState('');
   const [withdrawNotes, setWithdrawNotes] = useState('');
   const [disbursalSuccessMsg, setDisbursalSuccessMsg] = useState<string | null>(null);
+  const [selectedProofModal, setSelectedProofModal] = useState<any | null>(null);
 
   // Helper to resolve chits from all local and group sources
   const resolveChitsForCustomer = (custTarget: any, targetId: string) => {
@@ -439,18 +442,44 @@ export const CustomerProfile = () => {
   const displayActiveChits = customer?.chits?.length || customer?.activeChits || 0;
   const displayAgent = customer?.agent || 'System Admin';
   
+  const handlePrintReceiptSlip = (tx: any) => {
+    printCashReceipt({
+      receiptNo: tx.id,
+      date: tx.date,
+      customerName: displayName,
+      customerId: displayId,
+      customerMobile: displayPhone !== 'N/A' ? displayPhone : '',
+      groupName: tx.desc || tx.reference || (customer?.chits?.[0]?.groupName || customer?.chits?.[0]?.groupId || 'Chit Fund Group'),
+      paymentMode: tx.paymentMode || ((tx.title || tx.description || '').toLowerCase().includes('cash') ? 'CASH' : 'Online / Bank'),
+      amount: tx.amount,
+      description: tx.title || tx.description || tx.desc || 'Installment Payment',
+      referenceNo: tx.referenceNo || tx.reference,
+      collectedBy: displayAgent || 'Jenista Cash Counter'
+    });
+  };
+
   // Real transactions from ledger for recent activity
   const recentActivity = (() => {
     const ledger = JSON.parse(localStorage.getItem('ledgerTransactions') || '[]');
+    const paymentReqs = JSON.parse(localStorage.getItem('paymentRequests') || '[]');
     return ledger.filter((t: any) => 
       (displayId !== 'N/A' && (t.reference?.includes(displayId) || t.description?.includes(displayId) || t.customerId === displayId))
-    ).map((t: any) => ({
-      title: t.description || 'Payment Transaction',
-      amount: t.amount,
-      desc: t.reference || 'Ledger Entry',
-      date: new Date(t.date),
-      type: t.type === 'CREDIT' ? 'credit' : 'debit'
-    }));
+    ).map((t: any) => {
+      const matchedReq = paymentReqs.find((r: any) => 
+        (r.customerId === t.customerId || (t.reference && t.reference.includes(r.customerId))) &&
+        (r.paymentScreenshot || r.screenshotUrl)
+      );
+      const proofImg = t.paymentScreenshot || t.screenshotUrl || matchedReq?.paymentScreenshot || matchedReq?.screenshotUrl;
+      return {
+        id: t.id,
+        title: t.description || 'Payment Transaction',
+        amount: t.amount,
+        desc: t.reference || 'Ledger Entry',
+        date: new Date(t.date),
+        type: t.type === 'CREDIT' ? 'credit' : 'debit',
+        proofImg: proofImg
+      };
+    });
   })();
 
   // Direct calculation of verified total paid & total withdrawn from ledger and state
@@ -680,6 +709,7 @@ export const CustomerProfile = () => {
                         <th className="px-6 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-wider">Transaction</th>
                         <th className="px-6 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-wider">Date</th>
                         <th className="px-6 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-wider">Group</th>
+                        <th className="px-6 py-4 text-center text-xs font-bold text-neutral-500 uppercase tracking-wider">Receipt & Proof</th>
                         <th className="px-6 py-4 text-right text-xs font-bold text-neutral-500 uppercase tracking-wider">Amount</th>
                       </tr>
                     </thead>
@@ -691,7 +721,10 @@ export const CustomerProfile = () => {
                               <div className={cn("w-9 h-9 rounded-full flex items-center justify-center mr-3 shrink-0", act.type === 'credit' ? 'bg-success-light text-success' : 'bg-danger-light text-danger')}>
                                 {act.type === 'credit' ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownRight className="w-4 h-4" />}
                               </div>
-                              <span className="text-sm font-semibold text-neutral-900">{act.title}</span>
+                              <div>
+                                <span className="text-sm font-semibold text-neutral-900 block">{act.title}</span>
+                                {act.id && <span className="text-[10px] text-neutral-400 font-mono">{act.id}</span>}
+                              </div>
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">
@@ -699,6 +732,36 @@ export const CustomerProfile = () => {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">
                             {act.desc}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-center">
+                            <div className="flex items-center justify-center gap-1.5">
+                              {act.proofImg && (
+                                <button
+                                  onClick={() => setSelectedProofModal({
+                                    url: act.proofImg,
+                                    title: act.title,
+                                    amount: act.amount,
+                                    desc: act.desc,
+                                    date: act.date
+                                  })}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-primary-700 bg-primary-50 hover:bg-primary-100 rounded-lg border border-primary-200 shadow-2xs transition-all hover:scale-105"
+                                  title="View Customer Proof Screenshot"
+                                >
+                                  <Eye className="w-3.5 h-3.5" /> Proof
+                                </button>
+                              )}
+                              <button
+                                onClick={() => handlePrintReceiptSlip(act)}
+                                className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-lg border shadow-2xs transition-all hover:scale-105 ${
+                                  (act.title || '').toLowerCase().includes('cash')
+                                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600'
+                                    : 'bg-neutral-50 hover:bg-neutral-100 text-neutral-700 border-neutral-300'
+                                }`}
+                                title="Print Official Payment Receipt"
+                              >
+                                <Printer className="w-3.5 h-3.5" /> Print
+                              </button>
+                            </div>
                           </td>
                           <td className={cn("px-6 py-4 whitespace-nowrap text-sm font-bold text-right", act.type === 'credit' ? 'text-success' : 'text-danger')}>
                             {act.type === 'credit' ? '+' : '-'}{formatCurrency(act.amount)}
@@ -848,6 +911,7 @@ export const CustomerProfile = () => {
                   <th className="p-4">Date</th>
                   <th className="p-4">Group / Reference</th>
                   <th className="p-4">Description</th>
+                  <th className="p-4 text-center">Receipt</th>
                   <th className="p-4 text-right">Amount</th>
                 </tr>
               </thead>
@@ -861,7 +925,7 @@ export const CustomerProfile = () => {
                   if (customerTxns.length === 0) {
                     return (
                       <tr>
-                        <td colSpan={5} className="py-12 text-center text-neutral-400">
+                        <td colSpan={6} className="py-12 text-center text-neutral-400">
                           <Wallet className="w-8 h-8 mx-auto mb-3 text-neutral-300" />
                           <p>No payments recorded for this customer.</p>
                         </td>
@@ -869,17 +933,59 @@ export const CustomerProfile = () => {
                     );
                   }
 
-                  return customerTxns.map((t: any, idx: number) => (
-                    <tr key={idx} className="hover:bg-neutral-50 transition-colors">
-                      <td className="p-4 font-bold text-primary-900 font-mono">{t.id}</td>
-                      <td className="p-4 text-sm text-neutral-600">{new Date(t.date).toLocaleDateString('en-GB')}</td>
-                      <td className="p-4 text-sm font-bold text-neutral-800">{t.reference}</td>
-                      <td className="p-4 text-sm text-neutral-600">{t.description}</td>
-                      <td className={`p-4 text-sm font-bold text-right ${t.type === 'CREDIT' ? 'text-success' : 'text-danger'}`}>
-                        {t.type === 'CREDIT' ? '+' : '-'}{formatCurrency(t.amount)}
-                      </td>
-                    </tr>
-                  ));
+                  return customerTxns.map((t: any, idx: number) => {
+                    const isCash = (t.description || '').toLowerCase().includes('cash');
+                    return (
+                      <tr key={idx} className="hover:bg-neutral-50 transition-colors">
+                        <td className="p-4 font-bold text-primary-900 font-mono">{t.id}</td>
+                        <td className="p-4 text-sm text-neutral-600">{new Date(t.date).toLocaleDateString('en-GB')}</td>
+                        <td className="p-4 text-sm font-bold text-neutral-800">{t.reference}</td>
+                        <td className="p-4 text-sm text-neutral-600">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span>{t.description}</span>
+                            {isCash && (
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-emerald-100 text-emerald-800 uppercase tracking-wider">
+                                CASH
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="p-4 text-center whitespace-nowrap">
+                          <div className="flex items-center justify-center gap-1.5">
+                            {t.paymentScreenshot && (
+                              <button
+                                onClick={() => setSelectedProofModal({
+                                  url: t.paymentScreenshot,
+                                  title: t.description,
+                                  amount: t.amount,
+                                  desc: t.reference,
+                                  date: t.date
+                                })}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-primary-700 bg-primary-50 hover:bg-primary-100 rounded-lg border border-primary-200 shadow-2xs transition-all hover:scale-105"
+                                title="View Customer Proof Screenshot"
+                              >
+                                <Eye className="w-3.5 h-3.5" /> Proof
+                              </button>
+                            )}
+                            <button
+                              onClick={() => handlePrintReceiptSlip(t)}
+                              className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-lg border shadow-2xs transition-all hover:scale-105 ${
+                                isCash
+                                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600'
+                                  : 'bg-neutral-50 hover:bg-neutral-100 text-neutral-700 border-neutral-300'
+                              }`}
+                              title="Print Official Payment Receipt Voucher"
+                            >
+                              <Printer className="w-3.5 h-3.5" /> Print
+                            </button>
+                          </div>
+                        </td>
+                        <td className={`p-4 text-sm font-bold text-right ${t.type === 'CREDIT' ? 'text-success' : 'text-danger'}`}>
+                          {t.type === 'CREDIT' ? '+' : '-'}{formatCurrency(t.amount)}
+                        </td>
+                      </tr>
+                    );
+                  });
                 })()}
               </tbody>
             </table>
@@ -910,7 +1016,8 @@ export const CustomerProfile = () => {
                     <th className="p-4 border-r border-neutral-200">Ref / Txn ID</th>
                     <th className="p-4 border-r border-neutral-200 text-right">Debit (-)</th>
                     <th className="p-4 border-r border-neutral-200 text-right">Credit (+)</th>
-                    <th className="p-4 text-right">Balance</th>
+                    <th className="p-4 border-r border-neutral-200 text-right">Balance</th>
+                    <th className="p-4 text-center">Receipt</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-neutral-100 bg-white">
@@ -924,7 +1031,7 @@ export const CustomerProfile = () => {
                     if (customerTxns.length === 0) {
                       return (
                         <tr>
-                          <td colSpan={6} className="py-16 text-center text-neutral-400">
+                          <td colSpan={7} className="py-16 text-center text-neutral-400">
                             <BookOpen className="w-10 h-10 mx-auto mb-3 text-neutral-300" />
                             <p className="font-medium text-neutral-500">No transactions recorded yet.</p>
                           </td>
@@ -939,6 +1046,7 @@ export const CustomerProfile = () => {
                       } else {
                         runningBalance -= t.amount;
                       }
+                      const isCash = (t.description || '').toLowerCase().includes('cash');
 
                       return (
                         <tr key={idx} className="hover:bg-neutral-50/80 transition-colors">
@@ -946,7 +1054,14 @@ export const CustomerProfile = () => {
                             {new Date(t.date).toLocaleDateString('en-GB')}
                           </td>
                           <td className="p-4 text-sm text-neutral-800 font-medium border-r border-neutral-100">
-                            {t.description}
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span>{t.description}</span>
+                              {isCash && (
+                                <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-emerald-100 text-emerald-800 uppercase tracking-wider">
+                                  CASH
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="p-4 text-xs font-mono text-neutral-500 border-r border-neutral-100">
                             {t.id}
@@ -957,8 +1072,25 @@ export const CustomerProfile = () => {
                           <td className="p-4 text-sm font-medium text-success text-right border-r border-neutral-100">
                             {t.type === 'CREDIT' ? formatCurrency(t.amount) : '-'}
                           </td>
-                          <td className="p-4 text-sm font-bold text-primary-900 text-right bg-neutral-50/30">
+                          <td className="p-4 text-sm font-bold text-primary-900 text-right bg-neutral-50/30 border-r border-neutral-100">
                             {formatCurrency(runningBalance)}
+                          </td>
+                          <td className="p-4 text-center whitespace-nowrap">
+                            {t.type === 'CREDIT' ? (
+                              <button
+                                onClick={() => handlePrintReceiptSlip(t)}
+                                className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-lg border shadow-2xs transition-all hover:scale-105 ${
+                                  isCash
+                                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600'
+                                    : 'bg-neutral-50 hover:bg-neutral-100 text-neutral-700 border-neutral-300'
+                                }`}
+                                title="Print Payment Receipt"
+                              >
+                                <Printer className="w-3 h-3" /> Print
+                              </button>
+                            ) : (
+                              <span className="text-neutral-300 text-xs">—</span>
+                            )}
                           </td>
                         </tr>
                       );
@@ -1182,6 +1314,77 @@ export const CustomerProfile = () => {
                 >
                   <Award className="w-4 h-4 text-amber-300" />
                   Confirm & Disburse Prize
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Customer Payment Proof Screenshot Viewer Modal */}
+      {selectedProofModal && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl border border-neutral-200 overflow-hidden animate-in zoom-in-95 duration-150">
+            <div className="px-6 py-4 bg-primary-900 text-white flex justify-between items-center">
+              <div>
+                <h3 className="font-bold text-base flex items-center gap-2">
+                  <Eye className="w-4 h-4 text-primary-200" />
+                  Customer Payment Proof Screenshot
+                </h3>
+                <p className="text-xs text-primary-200 mt-0.5">
+                  {displayName} ({displayId}) · {selectedProofModal.desc}
+                </p>
+              </div>
+              <button 
+                onClick={() => setSelectedProofModal(null)} 
+                className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-3.5 bg-neutral-50 rounded-xl border border-neutral-200 text-xs">
+                <div>
+                  <span className="text-neutral-500 font-semibold block text-[10px] uppercase tracking-wider">Amount Paid</span>
+                  <span className="font-bold text-neutral-900 text-sm">₹{Number(selectedProofModal.amount || 0).toLocaleString('en-IN')}</span>
+                </div>
+                <div>
+                  <span className="text-neutral-500 font-semibold block text-[10px] uppercase tracking-wider">Transaction Info</span>
+                  <span className="font-bold text-primary-800 truncate block">{selectedProofModal.title}</span>
+                </div>
+                <div>
+                  <span className="text-neutral-500 font-semibold block text-[10px] uppercase tracking-wider">Date</span>
+                  <span className="font-semibold text-neutral-700">
+                    {new Date(selectedProofModal.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </span>
+                </div>
+              </div>
+
+              <div className="bg-neutral-900 rounded-xl p-2 flex items-center justify-center max-h-[55vh] overflow-auto border border-neutral-300">
+                <img 
+                  src={selectedProofModal.url} 
+                  alt="Customer Payment Receipt Proof" 
+                  className="max-h-[50vh] max-w-full object-contain rounded-lg shadow-md"
+                />
+              </div>
+
+              <div className="flex items-center justify-between pt-2 border-t border-neutral-100">
+                <a
+                  href={selectedProofModal.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  download={`receipt-${displayId}.png`}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-primary-700 bg-primary-50 hover:bg-primary-100 border border-primary-200 transition-colors"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" /> Open / Download Full Resolution
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setSelectedProofModal(null)}
+                  className="px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-lg text-xs font-bold transition-colors"
+                >
+                  Close
                 </button>
               </div>
             </div>

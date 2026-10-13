@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Button } from '../../../components/common/Button';
 import { Input } from '../../../components/common/Input';
-import { Search, Filter, Download, ArrowUpRight, ArrowDownRight, FileText, BookOpen } from 'lucide-react';
+import { Search, Filter, Download, ArrowUpRight, ArrowDownRight, BookOpen, Printer } from 'lucide-react';
 import { formatCurrency, formatDate } from '../../../utils/format';
+import { printCashReceipt } from '../../../utils/receiptPrinter';
 
 export const Ledger = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -140,10 +141,34 @@ export const Ledger = () => {
                         <span className="text-neutral-300">-</span>
                       )}
                     </td>
-                    <td className="table-cell text-right">
-                      <button className="text-neutral-400 hover:text-primary-900 transition-colors">
-                        <FileText className="w-4 h-4" />
-                      </button>
+                    <td className="table-cell text-right whitespace-nowrap">
+                      {txn.type === 'CREDIT' ? (
+                        <button 
+                          onClick={() => printCashReceipt({
+                            receiptNo: txn.id,
+                            date: txn.date,
+                            customerName: txn.customerName || (txn.reference?.split('/')?.[0]?.trim()) || 'Valued Member',
+                            customerId: txn.customerId || '',
+                            groupName: txn.groupId || (txn.reference?.split('/')?.[1]?.trim()) || 'Chit Fund Group',
+                            paymentMode: (txn.description || '').toLowerCase().includes('cash') ? 'CASH' : 'Online Payment',
+                            amount: txn.amount,
+                            description: txn.description,
+                            referenceNo: txn.reference,
+                            collectedBy: 'Jenista General Accounts'
+                          })}
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold rounded-lg border shadow-2xs transition-all hover:scale-105 ${
+                            (txn.description || '').toLowerCase().includes('cash')
+                              ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600'
+                              : 'bg-neutral-50 hover:bg-neutral-100 text-neutral-700 border-neutral-300'
+                          }`}
+                          title="Print Official Payment Receipt Slip"
+                        >
+                          <Printer className="w-3.5 h-3.5" />
+                          <span>Print</span>
+                        </button>
+                      ) : (
+                        <span className="text-neutral-300 text-xs">—</span>
+                      )}
                     </td>
                   </tr>
                 ))

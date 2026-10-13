@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Search, Printer, CheckCircle2, RotateCcw } from 'lucide-react';
 import { fetchClient } from '../../../api/client';
+import { printCashReceipt } from '../../../utils/receiptPrinter';
 
 interface ReceiptData {
   receiptNo: string;
@@ -126,64 +127,19 @@ export const ReceiptEntry = () => {
   };
 
   const handlePrint = () => {
-    const printContent = printRef.current?.innerHTML;
-    if (!printContent) return;
-    const win = window.open('', '_blank');
-    if (!win) return;
-    win.document.write(`
-      <html>
-        <head>
-          <title>Receipt ${form.receiptNo}</title>
-          <style>
-            * { margin: 0; padding: 0; box-sizing: border-box; }
-            body { font-family: 'Courier New', monospace; font-size: 12px; color: #111; padding: 20px; }
-            .receipt { max-width: 380px; margin: 0 auto; border: 1px solid #ccc; padding: 20px; }
-            .header { text-align: center; border-bottom: 2px dashed #999; padding-bottom: 12px; margin-bottom: 12px; }
-            .header h1 { font-size: 20px; font-weight: 900; letter-spacing: 2px; }
-            .header p { font-size: 10px; color: #555; margin-top: 2px; }
-            .row { display: flex; justify-content: space-between; margin-bottom: 6px; }
-            .label { color: #555; }
-            .value { font-weight: bold; text-align: right; }
-            .divider { border-top: 1px dashed #ccc; margin: 10px 0; }
-            .total { font-size: 16px; font-weight: 900; display: flex; justify-content: space-between; }
-            .footer { text-align: center; margin-top: 14px; font-size: 10px; color: #777; }
-            .badge { display: inline-block; padding: 2px 8px; border: 1px solid #111; font-size: 10px; font-weight: 900; letter-spacing: 1px; margin-top: 6px; }
-          </style>
-        </head>
-        <body>
-          <div class="receipt">
-            <div class="header">
-              <h1>TRUSTCHIT</h1>
-              <p>Financial Services Pvt. Ltd.</p>
-              <p>GST: 29ABCDE1234F1Z5</p>
-              <div class="badge">${form.type === 'COLLECTION' ? 'COLLECTION RECEIPT' : 'DISBURSAL RECEIPT'}</div>
-            </div>
-            <div class="row"><span class="label">Receipt No.</span><span class="value">${form.receiptNo}</span></div>
-            <div class="row"><span class="label">Date</span><span class="value">${new Date(form.receiptDate).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' })}</span></div>
-            <div class="divider"></div>
-            <div class="row"><span class="label">Customer</span><span class="value">${form.customerName || '—'}</span></div>
-            <div class="row"><span class="label">Customer ID</span><span class="value">${form.customerId || '—'}</span></div>
-            <div class="row"><span class="label">Mobile</span><span class="value">${form.mobileNumber || '—'}</span></div>
-            <div class="row"><span class="label">Chit Group</span><span class="value">${form.chitGroup || '—'}</span></div>
-            <div class="row"><span class="label">Month</span><span class="value">${form.monthNumber || '—'}</span></div>
-            <div class="divider"></div>
-            <div class="row"><span class="label">Payment Mode</span><span class="value">${form.receiptMode || '—'}</span></div>
-            <div class="row"><span class="label">Reference No.</span><span class="value">${form.referenceNo || '—'}</span></div>
-            ${form.remarks ? `<div class="row"><span class="label">Remarks</span><span class="value">${form.remarks}</span></div>` : ''}
-            <div class="divider"></div>
-            <div class="total"><span>NET AMOUNT</span><span>₹${Number(form.receiptAmt || 0).toLocaleString('en-IN')}</span></div>
-            <div class="divider"></div>
-            <div class="footer">
-              <p>Executive: ${form.executive}</p>
-              <p style="margin-top:8px">Thank you for your trust in TrustChit.</p>
-              <p>This is a computer-generated receipt.</p>
-            </div>
-          </div>
-        </body>
-      </html>
-    `);
-    win.document.close();
-    win.print();
+    printCashReceipt({
+      receiptNo: form.receiptNo,
+      date: form.receiptDate,
+      customerName: form.customerName,
+      customerId: form.customerId,
+      customerMobile: form.mobileNumber,
+      groupName: form.chitGroup,
+      paymentMode: form.receiptMode || 'CASH',
+      amount: form.receiptAmt,
+      description: `${form.type === 'COLLECTION' ? 'Collection' : 'Disbursal'} - Month ${form.monthNumber || '—'} - ${form.customerName || 'Customer'}`,
+      referenceNo: form.referenceNo,
+      collectedBy: form.executive || 'Jenista Cash Counter'
+    });
   };
 
   const amtNum = Number(form.receiptAmt || 0);
@@ -360,7 +316,7 @@ export const ReceiptEntry = () => {
 
             <div className="px-6 pt-5 pb-4 border-b-2 border-dashed border-slate-200">
               <div className="text-center mb-4">
-                <p className="text-lg font-black tracking-widest uppercase text-slate-900">TrustChit</p>
+                <p className="text-lg font-black tracking-widest uppercase text-slate-900">Jenista Chits</p>
                 <p className="text-[10px] text-slate-400 tracking-wider mt-0.5">Financial Services Pvt. Ltd.</p>
                 <span className="inline-block mt-2 px-3 py-0.5 border border-slate-800 text-[9px] font-black tracking-widest uppercase text-slate-800">
                   {form.type === 'COLLECTION' ? 'Collection Receipt' : 'Disbursal Receipt'}
@@ -398,7 +354,7 @@ export const ReceiptEntry = () => {
 
             <div className="px-6 py-4 text-center space-y-1">
               <p className="text-[9px] text-slate-400 uppercase tracking-wider">Executive: {form.executive}</p>
-              <p className="text-[9px] text-slate-400">Thank you for your trust in TrustChit.</p>
+              <p className="text-[9px] text-slate-400">Thank you for your trust in Jenista Chits.</p>
               <p className="text-[9px] text-slate-400">Computer-generated receipt.</p>
             </div>
 

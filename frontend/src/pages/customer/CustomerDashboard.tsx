@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Layers, CreditCard, TrendingUp, Bell, History, Calendar, ArrowRight, Copy, Table, Gavel, Award, Building2, Wallet, CheckCircle2, Upload } from 'lucide-react';
+import { Layers, CreditCard, TrendingUp, Bell, History, Calendar, ArrowRight, Copy, Table, Gavel, Award, Building2, Wallet, CheckCircle2, Upload, Printer, X, Search, FileText } from 'lucide-react';
 import { formatCurrency, formatDate } from '../../utils/format';
+import { printCashReceipt } from '../../utils/receiptPrinter';
 import { useAuth } from '../../store/AuthContext';
 import { fetchClient } from '../../api/client';
 import { FixedPlanSchedule } from '../../components/customer/FixedPlanSchedule';
@@ -37,6 +38,11 @@ export const CustomerDashboard = () => {
   const [withdrawSubmitting, setWithdrawSubmitting] = useState(false);
   const [withdrawSuccessMsg, setWithdrawSuccessMsg] = useState('');
   const [pendingWithdrawals, setPendingWithdrawals] = useState<any[]>([]);
+
+  // Statements Modal States
+  const [showStatementsModal, setShowStatementsModal] = useState(false);
+  const [statementFilter, setStatementFilter] = useState<'ALL' | 'CASH' | 'ONLINE'>('ALL');
+  const [statementSearch, setStatementSearch] = useState('');
 
   useEffect(() => {
     const loadCustomerData = async () => {
@@ -242,6 +248,23 @@ export const CustomerDashboard = () => {
       }, 2000);
     }, 400);
   };
+
+  const handlePrintReceiptSlip = (trx: any) => {
+    printCashReceipt({
+      receiptNo: trx.id,
+      date: trx.date,
+      customerName: user?.name || 'Customer',
+      customerId: user?.id || 'TC-73071',
+      customerMobile: user?.phone || '',
+      groupName: trx.groupId || trx.reference || (myChits.length > 0 ? (myChits[0]?.groupName || myChits[0]?.groupId) : 'Chit Fund Group'),
+      paymentMode: trx.paymentMode || ((trx.description || '').toLowerCase().includes('cash') ? 'CASH' : 'Online Payment'),
+      amount: trx.amount,
+      description: trx.description,
+      referenceNo: trx.referenceNo,
+      collectedBy: 'Jenista Cash Counter'
+    });
+  };
+
 
   const handleOpenWithdraw = (chit: any) => {
     setWithdrawModalChit(chit);
@@ -690,25 +713,54 @@ export const CustomerDashboard = () => {
                       No recent transactions found.
                     </div>
                   ) : (
-                    transactions.map((trx, idx) => (
-                      <div key={idx} className="p-4 hover:bg-neutral-50 transition-colors">
-                        <div className="flex justify-between items-start mb-1">
-                          <p className="font-bold text-sm text-primary-900">{trx.description}</p>
-                          <p className="font-bold text-sm text-success">+{formatCurrency(trx.amount)}</p>
+                    transactions.map((trx, idx) => {
+                      const isCash = (trx.description || '').toLowerCase().includes('cash');
+                      return (
+                        <div key={idx} className="p-4 hover:bg-neutral-50 transition-colors">
+                          <div className="flex justify-between items-start mb-1">
+                            <div>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <p className="font-bold text-sm text-primary-900">{trx.description}</p>
+                                {isCash && (
+                                  <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-emerald-100 text-emerald-800 uppercase tracking-wider">
+                                    CASH
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <p className="font-bold text-sm text-success whitespace-nowrap ml-2">+{formatCurrency(trx.amount)}</p>
+                          </div>
+                          <div className="flex justify-between items-center mt-2 pt-1 border-t border-neutral-100">
+                            <div className="flex items-center gap-2.5">
+                              <p className="text-xs text-neutral-500 font-mono font-semibold">{trx.id}</p>
+                              <p className="text-xs text-neutral-400 flex items-center">
+                                <Calendar className="w-3 h-3 mr-1" /> {formatDate(trx.date)}
+                              </p>
+                            </div>
+                            <button
+                              onClick={() => handlePrintReceiptSlip(trx)}
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all shadow-2xs hover:scale-105 ${
+                                isCash 
+                                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white' 
+                                  : 'bg-neutral-100 hover:bg-neutral-200 text-neutral-700 border border-neutral-300'
+                              }`}
+                              title="Print Official Payment Receipt Slip"
+                            >
+                              <Printer className="w-3.5 h-3.5" />
+                              <span>Print Receipt</span>
+                            </button>
+                          </div>
                         </div>
-                        <div className="flex justify-between items-center mt-2">
-                          <p className="text-xs text-neutral-500 font-mono">{trx.id}</p>
-                          <p className="text-xs text-neutral-500 flex items-center">
-                            <Calendar className="w-3 h-3 mr-1" /> {formatDate(trx.date)}
-                          </p>
-                        </div>
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
                 <div className="bg-neutral-50 p-3 text-center border-t border-neutral-100">
-                  <button className="text-sm font-semibold text-primary-600 hover:text-primary-800 transition-colors">
-                    View All Statements
+                  <button 
+                    onClick={() => setShowStatementsModal(true)}
+                    className="text-sm font-semibold text-primary-600 hover:text-primary-800 transition-colors flex items-center justify-center gap-1.5 w-full"
+                  >
+                    <FileText className="w-4 h-4" /> View All Statements & Receipts
                   </button>
                 </div>
               </div>
@@ -1065,6 +1117,159 @@ export const CustomerDashboard = () => {
                 </div>
               </form>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* All Statements & Payment Receipts Modal */}
+      {showStatementsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl border border-neutral-200 w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="px-6 py-4 bg-primary-900 text-white flex justify-between items-center shrink-0">
+              <div className="flex items-center gap-2.5">
+                <FileText className="w-5 h-5 text-amber-300" />
+                <div>
+                  <h3 className="font-bold text-base">Account Statements & Receipts</h3>
+                  <p className="text-xs text-primary-200">
+                    {user?.name} · Member ID: {user?.id || 'TC-73071'}
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowStatementsModal(false)}
+                className="text-primary-200 hover:text-white p-1 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Filter and Search Bar */}
+            <div className="p-4 bg-neutral-50 border-b border-neutral-200 flex flex-col sm:flex-row justify-between items-center gap-3 shrink-0">
+              <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                {(['ALL', 'CASH', 'ONLINE'] as const).map(f => (
+                  <button
+                    key={f}
+                    onClick={() => setStatementFilter(f)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                      statementFilter === f
+                        ? 'bg-primary-900 text-white shadow-xs'
+                        : 'bg-white text-neutral-600 border border-neutral-200 hover:bg-neutral-100'
+                    }`}
+                  >
+                    {f === 'ALL' && 'All Transactions'}
+                    {f === 'CASH' && 'Cash Receipts 💵'}
+                    {f === 'ONLINE' && 'Online Payments 💳'}
+                  </button>
+                ))}
+              </div>
+
+              <div className="relative w-full sm:w-64">
+                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
+                <input
+                  type="text"
+                  placeholder="Search receipt ID or note..."
+                  value={statementSearch}
+                  onChange={e => setStatementSearch(e.target.value)}
+                  className="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 font-medium"
+                />
+              </div>
+            </div>
+
+            {/* Table Area */}
+            <div className="flex-1 overflow-y-auto p-4">
+              {(() => {
+                const filtered = transactions.filter(t => {
+                  const isCash = (t.description || '').toLowerCase().includes('cash') || (t.paymentMode || '').toLowerCase().includes('cash');
+                  if (statementFilter === 'CASH' && !isCash) return false;
+                  if (statementFilter === 'ONLINE' && isCash) return false;
+                  if (statementSearch) {
+                    const q = statementSearch.toLowerCase();
+                    return (t.id || '').toLowerCase().includes(q) || (t.description || '').toLowerCase().includes(q);
+                  }
+                  return true;
+                });
+
+                if (filtered.length === 0) {
+                  return (
+                    <div className="py-12 text-center text-neutral-400">
+                      <Wallet className="w-10 h-10 mx-auto mb-2 text-neutral-300" />
+                      <p className="font-semibold text-neutral-600 text-sm">No payment records found</p>
+                      <p className="text-xs text-neutral-400 mt-1">Try changing filters or search terms.</p>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead className="bg-neutral-100 text-[11px] font-bold text-neutral-600 uppercase tracking-wider sticky top-0 border-b border-neutral-200">
+                        <tr>
+                          <th className="p-3">Receipt ID</th>
+                          <th className="p-3">Date</th>
+                          <th className="p-3">Group / Particulars</th>
+                          <th className="p-3">Mode</th>
+                          <th className="p-3 text-right">Amount</th>
+                          <th className="p-3 text-center">Receipt Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-neutral-100 text-xs">
+                        {filtered.map((t, idx) => {
+                          const isCash = (t.description || '').toLowerCase().includes('cash') || (t.paymentMode || '').toLowerCase().includes('cash');
+                          return (
+                            <tr key={idx} className="hover:bg-neutral-50/80 transition-colors">
+                              <td className="p-3 font-mono font-bold text-primary-900">{t.id}</td>
+                              <td className="p-3 text-neutral-600">{formatDate(t.date)}</td>
+                              <td className="p-3">
+                                <p className="font-bold text-neutral-800">{t.description}</p>
+                                {t.reference && <p className="text-[11px] text-neutral-400 font-mono">{t.reference}</p>}
+                              </td>
+                              <td className="p-3">
+                                <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
+                                  isCash 
+                                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' 
+                                    : 'bg-blue-50 text-blue-700 border border-blue-200'
+                                }`}>
+                                  {isCash ? '💵 CASH' : (t.paymentMode || 'ONLINE')}
+                                </span>
+                              </td>
+                              <td className="p-3 font-bold text-right text-emerald-700 text-sm">
+                                +{formatCurrency(t.amount)}
+                              </td>
+                              <td className="p-3 text-center">
+                                <button
+                                  onClick={() => handlePrintReceiptSlip(t)}
+                                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-2xs hover:scale-105 ${
+                                    isCash
+                                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-200'
+                                      : 'bg-neutral-100 hover:bg-neutral-200 text-neutral-700 border border-neutral-300'
+                                  }`}
+                                  title="Print Official Payment Receipt"
+                                >
+                                  <Printer className="w-3.5 h-3.5" />
+                                  <span>Print Receipt</span>
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-3.5 bg-neutral-50 border-t border-neutral-200 flex justify-between items-center text-xs text-neutral-500 shrink-0">
+              <span>Showing {transactions.length} record(s)</span>
+              <button
+                onClick={() => setShowStatementsModal(false)}
+                className="px-4 py-1.5 bg-white border border-neutral-300 hover:bg-neutral-100 rounded-lg font-bold text-neutral-700 transition-colors"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

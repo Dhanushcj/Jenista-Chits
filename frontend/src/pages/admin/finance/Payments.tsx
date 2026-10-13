@@ -17,6 +17,7 @@ import {
   X
 } from 'lucide-react';
 import { fetchClient } from '../../../api/client';
+import { printCashReceipt } from '../../../utils/receiptPrinter';
 
 type TabType = 'VERIFICATION' | 'WITHDRAWALS' | 'DIRECT_ENTRY';
 
@@ -482,29 +483,19 @@ export const Payments = () => {
   };
 
   const handlePrint = () => {
-    const win = window.open('', '_blank');
-    if (!win) return;
-    win.document.write(`<html><head><title>Receipt ${form.receiptNo}</title>
-      <style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Courier New',monospace;font-size:12px;color:#111;padding:20px}.r{max-width:380px;margin:0 auto;border:1px solid #ccc;padding:20px}.h{text-align:center;border-bottom:2px dashed #999;padding-bottom:12px;margin-bottom:12px}.h h1{font-size:20px;font-weight:900;letter-spacing:2px}.h p{font-size:10px;color:#555;margin-top:2px}.row{display:flex;justify-content:space-between;margin-bottom:6px}.label{color:#555}.value{font-weight:bold;text-align:right}.div{border-top:1px dashed #ccc;margin:10px 0}.total{font-size:16px;font-weight:900;display:flex;justify-content:space-between}.foot{text-align:center;margin-top:14px;font-size:10px;color:#777}.badge{display:inline-block;padding:2px 8px;border:1px solid #111;font-size:10px;font-weight:900;letter-spacing:1px;margin-top:6px}</style></head>
-      <body><div class="r"><div class="h"><h1>JENISTA CHITS</h1><p>Financial Services Pvt. Ltd.</p><div class="badge">${form.txType} RECEIPT</div></div>
-      <div class="row"><span class="label">Receipt No.</span><span class="value">${form.receiptNo}</span></div>
-      <div class="row"><span class="label">Date</span><span class="value">${new Date(form.receiptDate).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}</span></div>
-      <div class="div"></div>
-      <div class="row"><span class="label">Customer</span><span class="value">${form.customerName||'—'}</span></div>
-      <div class="row"><span class="label">ID</span><span class="value">${form.customerId||'—'}</span></div>
-      <div class="row"><span class="label">Mobile</span><span class="value">${form.mobileNumber||'—'}</span></div>
-      <div class="row"><span class="label">Chit Group</span><span class="value">${form.chitGroup||'—'}</span></div>
-      <div class="row"><span class="label">Month</span><span class="value">${form.monthNumber||'—'}</span></div>
-      <div class="div"></div>
-      <div class="row"><span class="label">Mode</span><span class="value">${form.paymentMode||'—'}</span></div>
-      <div class="row"><span class="label">Ref. No.</span><span class="value">${form.referenceNo||'—'}</span></div>
-      <div class="div"></div>
-      <div class="total"><span>NET AMOUNT</span><span>₹${Number(form.amount||0).toLocaleString('en-IN')}</span></div>
-      <div class="div"></div>
-      <div class="foot"><p>Executive: ${form.executive}</p><p style="margin-top:8px">Thank you for your trust in Jenista Chits.</p><p>Computer-generated receipt.</p></div>
-      </div></body></html>`);
-    win.document.close();
-    win.print();
+    printCashReceipt({
+      receiptNo: form.receiptNo,
+      date: form.receiptDate,
+      customerName: form.customerName,
+      customerId: form.customerId,
+      customerMobile: form.mobileNumber,
+      groupName: form.chitGroup,
+      paymentMode: form.paymentMode || 'CASH',
+      amount: form.amount,
+      description: `${form.txType === 'COLLECTION' ? 'Collection' : 'Disbursal'} - Month ${form.monthNumber || '—'} - ${form.customerName}`,
+      referenceNo: form.referenceNo,
+      collectedBy: form.executive || 'Jenista Accounts'
+    });
   };
 
   return (
@@ -769,6 +760,32 @@ export const Payments = () => {
                                   Verify & Approve
                                 </button>
                               </div>
+                            ) : isApproved ? (
+                              <button
+                                onClick={() => printCashReceipt({
+                                  receiptNo: req.id,
+                                  date: req.submittedAt,
+                                  customerName: req.customerName,
+                                  customerId: req.customerId,
+                                  customerMobile: req.mobile,
+                                  groupName: req.groupName || req.groupId,
+                                  ticketNumber: req.ticketNumber,
+                                  paymentMode: req.paymentMode,
+                                  amount: req.amount,
+                                  description: `Verified Payment (${req.paymentMode} Ref: ${req.referenceNo})`,
+                                  referenceNo: req.referenceNo,
+                                  collectedBy: 'Jenista Admin Accounts'
+                                })}
+                                className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border shadow-2xs transition-all hover:scale-105 ${
+                                  (req.paymentMode || '').toLowerCase().includes('cash')
+                                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600'
+                                    : 'bg-neutral-50 hover:bg-neutral-100 text-neutral-700 border-neutral-300'
+                                }`}
+                                title="Print Official Payment Receipt Voucher"
+                              >
+                                <Printer className="w-3.5 h-3.5" />
+                                <span>Print Receipt</span>
+                              </button>
                             ) : (
                               <span className="text-xs text-neutral-400 italic">No actions</span>
                             )}
