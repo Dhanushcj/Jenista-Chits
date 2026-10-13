@@ -88,6 +88,7 @@ export const Payments = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
   const [actionSuccessMsg, setActionSuccessMsg] = useState<string | null>(null);
+  const [viewingProof, setViewingProof] = useState<any | null>(null);
 
   // Withdrawal States
   const [withdrawalRequests, setWithdrawalRequests] = useState<WithdrawalRequest[]>([]);
@@ -210,6 +211,8 @@ export const Payments = () => {
         customerName: req.customerName,
         customerId: req.customerId,
         groupId: req.groupId,
+        paymentScreenshot: req.paymentScreenshot || req.screenshotUrl,
+        screenshotUrl: req.paymentScreenshot || req.screenshotUrl,
         status: 'VERIFIED'
       };
       localStorage.setItem('ledgerTransactions', JSON.stringify([newLedgerEntry, ...ledger]));
@@ -642,6 +645,7 @@ export const Payments = () => {
                       <th className="py-3.5 px-4">Customer Details</th>
                       <th className="py-3.5 px-4">Chit Group & Ticket</th>
                       <th className="py-3.5 px-4">Mode & UTR / Ref No.</th>
+                      <th className="py-3.5 px-4 text-center">Receipt Proof</th>
                       <th className="py-3.5 px-4 text-right">Amount Paid</th>
                       <th className="py-3.5 px-4 text-center">Status</th>
                       <th className="py-3.5 px-4 text-right">Admin Action</th>
@@ -695,6 +699,28 @@ export const Payments = () => {
                             <p className="text-xs font-mono font-bold text-neutral-800 mt-1">
                               {req.referenceNo}
                             </p>
+                          </td>
+
+                          <td className="py-4 px-4 text-center whitespace-nowrap">
+                            {(req.paymentScreenshot || req.screenshotUrl) ? (
+                              <button
+                                onClick={() => setViewingProof({
+                                  url: req.paymentScreenshot || req.screenshotUrl,
+                                  customerName: req.customerName,
+                                  customerId: req.customerId,
+                                  amount: req.amount,
+                                  groupName: req.groupName || req.groupId,
+                                  date: req.submittedAt,
+                                  ref: req.referenceNo,
+                                  mode: req.paymentMode
+                                })}
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold bg-primary-50 text-primary-700 hover:bg-primary-100 border border-primary-200 rounded-lg shadow-2xs transition-colors"
+                              >
+                                <Eye className="w-3.5 h-3.5" /> View Proof
+                              </button>
+                            ) : (
+                              <span className="text-xs text-neutral-400 italic">No Upload</span>
+                            )}
                           </td>
 
                           <td className="py-4 px-4 text-right whitespace-nowrap">
@@ -1205,6 +1231,81 @@ export const Payments = () => {
                 >
                   <Check className="w-3.5 h-3.5 text-amber-300" />
                   Approve & Disburse Payout
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Receipt Proof Screenshot Viewer Modal */}
+      {viewingProof && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl border border-neutral-200 overflow-hidden animate-in zoom-in-95 duration-150">
+            <div className="px-6 py-4 bg-primary-900 text-white flex justify-between items-center">
+              <div>
+                <h3 className="font-bold text-base flex items-center gap-2">
+                  <Eye className="w-4 h-4 text-primary-200" />
+                  Payment Proof Screenshot
+                </h3>
+                <p className="text-xs text-primary-200 mt-0.5">
+                  {viewingProof.customerName} ({viewingProof.customerId}) · {viewingProof.groupName}
+                </p>
+              </div>
+              <button 
+                onClick={() => setViewingProof(null)} 
+                className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3.5 bg-neutral-50 rounded-xl border border-neutral-200 text-xs">
+                <div>
+                  <span className="text-neutral-500 font-semibold block text-[10px] uppercase tracking-wider">Amount Paid</span>
+                  <span className="font-bold text-neutral-900 text-sm">₹{Number(viewingProof.amount || 0).toLocaleString('en-IN')}</span>
+                </div>
+                <div>
+                  <span className="text-neutral-500 font-semibold block text-[10px] uppercase tracking-wider">Payment Mode</span>
+                  <span className="font-bold text-primary-800">{viewingProof.mode}</span>
+                </div>
+                <div>
+                  <span className="text-neutral-500 font-semibold block text-[10px] uppercase tracking-wider">UTR / Ref No.</span>
+                  <span className="font-mono font-bold text-neutral-900">{viewingProof.ref}</span>
+                </div>
+                <div>
+                  <span className="text-neutral-500 font-semibold block text-[10px] uppercase tracking-wider">Date Submitted</span>
+                  <span className="font-semibold text-neutral-700">
+                    {new Date(viewingProof.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </span>
+                </div>
+              </div>
+
+              <div className="bg-neutral-900 rounded-xl p-2 flex items-center justify-center max-h-[55vh] overflow-auto border border-neutral-300">
+                <img 
+                  src={viewingProof.url} 
+                  alt="Customer Payment Receipt" 
+                  className="max-h-[50vh] max-w-full object-contain rounded-lg shadow-md"
+                />
+              </div>
+
+              <div className="flex items-center justify-between pt-2 border-t border-neutral-100">
+                <a
+                  href={viewingProof.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  download={`receipt-${viewingProof.customerId}.png`}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-primary-700 bg-primary-50 hover:bg-primary-100 border border-primary-200 transition-colors"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" /> Open / Download Full Resolution
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setViewingProof(null)}
+                  className="px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-lg text-xs font-bold transition-colors"
+                >
+                  Close
                 </button>
               </div>
             </div>

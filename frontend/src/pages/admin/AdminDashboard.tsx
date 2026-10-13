@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Layers, TrendingUp, ArrowLeft, Plus, X, Users, IndianRupee, PieChart as PieChartIcon, Eye, CheckCircle2, ExternalLink, Award } from 'lucide-react';
+import { Layers, TrendingUp, ArrowLeft, Plus, X, Users, IndianRupee, PieChart as PieChartIcon, Eye, CheckCircle2, ExternalLink } from 'lucide-react';
 import { formatCurrency } from '../../utils/format';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 import { fetchClient } from '../../api/client';
