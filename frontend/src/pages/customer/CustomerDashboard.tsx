@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Layers, CreditCard, TrendingUp, Bell, History, Calendar, ArrowRight, Copy, Table, Gavel, Award, Building2, Wallet, CheckCircle2 } from 'lucide-react';
+import { Layers, CreditCard, TrendingUp, Bell, History, Calendar, ArrowRight, Copy, Table, Gavel, Award, Building2, Wallet, CheckCircle2, Upload } from 'lucide-react';
 import { formatCurrency, formatDate } from '../../utils/format';
 import { useAuth } from '../../store/AuthContext';
 import { fetchClient } from '../../api/client';
@@ -20,6 +20,8 @@ export const CustomerDashboard = () => {
   const [payAmount, setPayAmount] = useState<string>('');
   const [payMode, setPayMode] = useState<'UPI' | 'Bank Transfer' | 'Cash'>('UPI');
   const [payRefNo, setPayRefNo] = useState<string>('');
+  const [payScreenshot, setPayScreenshot] = useState<string>('');
+  const [screenshotFileName, setScreenshotFileName] = useState<string>('');
   const [paySubmitting, setPaySubmitting] = useState(false);
   const [paySuccessMsg, setPaySuccessMsg] = useState('');
   const [pendingRequests, setPendingRequests] = useState<any[]>([]);
@@ -170,7 +172,33 @@ export const CustomerDashboard = () => {
     setPayAmount(String(chit.monthlyInstallment || 15000));
     setPayMode('UPI');
     setPayRefNo('');
+    setPayScreenshot('');
+    setScreenshotFileName('');
     setPaySuccessMsg('');
+  };
+
+  const handleScreenshotUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Please upload an image file (PNG, JPG, JPEG, WEBP).');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Image file size must be less than 5MB.');
+      return;
+    }
+
+    setScreenshotFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setPayScreenshot(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleSubmitPayment = (e: React.FormEvent) => {
@@ -191,6 +219,8 @@ export const CustomerDashboard = () => {
       amount: Number(payAmount),
       paymentMode: payMode,
       referenceNo: payRefNo.trim(),
+      paymentScreenshot: payScreenshot || undefined,
+      screenshotUrl: payScreenshot || undefined,
       submittedAt: new Date().toISOString(),
       status: 'PENDING_VERIFICATION',
       remarks: `Paid via ${payMode}`
@@ -206,6 +236,8 @@ export const CustomerDashboard = () => {
       setPaySuccessMsg('Payment request submitted successfully! Admin will verify and update your receipt.');
       setTimeout(() => {
         setPaymentModalChit(null);
+        setPayScreenshot('');
+        setScreenshotFileName('');
         setPaySuccessMsg('');
       }, 2000);
     }, 400);
@@ -781,6 +813,65 @@ export const CustomerDashboard = () => {
                   <p className="text-[11px] text-neutral-500 mt-1">
                     Enter the UPI transaction UTR or bank reference ID so admin can verify and update receipt.
                   </p>
+                </div>
+
+                {/* Upload Payment Screenshot */}
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-neutral-600 mb-1.5 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <Upload className="w-3.5 h-3.5 text-primary-600" />
+                      Upload Payment Screenshot / Receipt Slip
+                    </span>
+                    <span className="text-[10px] text-neutral-400 font-normal">Optional</span>
+                  </label>
+
+                  {payScreenshot ? (
+                    <div className="border border-primary-200 bg-primary-50/40 rounded-xl p-3 flex items-center justify-between gap-3 shadow-2xs">
+                      <div className="flex items-center gap-3 overflow-hidden">
+                        <img 
+                          src={payScreenshot} 
+                          alt="Screenshot Preview" 
+                          className="w-14 h-14 object-cover rounded-lg border border-primary-200 shrink-0 shadow-2xs" 
+                        />
+                        <div className="overflow-hidden">
+                          <p className="text-xs font-bold text-neutral-800 truncate">
+                            {screenshotFileName || 'payment-receipt.png'}
+                          </p>
+                          <p className="text-[11px] text-emerald-600 font-semibold flex items-center gap-1 mt-0.5">
+                            <CheckCircle2 className="w-3.5 h-3.5" /> Screenshot attached
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPayScreenshot('');
+                          setScreenshotFileName('');
+                        }}
+                        className="px-2.5 py-1 text-xs text-rose-600 hover:bg-rose-50 rounded-lg border border-rose-200 font-bold transition-colors shrink-0"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="border-2 border-dashed border-neutral-300 hover:border-primary-500 bg-neutral-50 hover:bg-primary-50/20 rounded-xl p-4 flex flex-col items-center justify-center cursor-pointer transition-colors group">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleScreenshotUpload}
+                      />
+                      <div className="p-2.5 rounded-full bg-white shadow-2xs group-hover:scale-105 transition-transform text-primary-700">
+                        <Upload className="w-5 h-5" />
+                      </div>
+                      <p className="text-xs font-bold text-neutral-700 mt-2">
+                        Click to upload payment screenshot
+                      </p>
+                      <p className="text-[10px] text-neutral-400 mt-0.5">
+                        PNG, JPG, JPEG, WEBP up to 5MB
+                      </p>
+                    </label>
+                  )}
                 </div>
 
                 <div className="pt-3 border-t border-neutral-100 flex items-center justify-end space-x-3">

@@ -11,7 +11,10 @@ import {
   CreditCard,
   ShieldCheck,
   Check,
-  Award
+  Award,
+  Eye,
+  ExternalLink,
+  X
 } from 'lucide-react';
 import { fetchClient } from '../../../api/client';
 
@@ -28,6 +31,8 @@ interface PaymentRequest {
   amount: number;
   paymentMode: string;
   referenceNo: string;
+  paymentScreenshot?: string;
+  screenshotUrl?: string;
   submittedAt: string;
   status: 'PENDING_VERIFICATION' | 'APPROVED' | 'REJECTED';
   remarks?: string;

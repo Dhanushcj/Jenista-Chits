@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Layers, TrendingUp, ArrowLeft, Plus, X, Users, IndianRupee, PieChart as PieChartIcon } from 'lucide-react';
+import { Layers, TrendingUp, ArrowLeft, Plus, X, Users, IndianRupee, PieChart as PieChartIcon, Eye, CheckCircle2, ExternalLink, Award } from 'lucide-react';
 import { formatCurrency } from '../../utils/format';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 import { fetchClient } from '../../api/client';
@@ -26,6 +26,7 @@ export const AdminDashboard = () => {
   const [foundCustomer, setFoundCustomer] = useState<any | null>(null);
   const [dueDate, setDueDate] = useState('');
   const [customChitValue, setCustomChitValue] = useState('');
+  const [viewingScreenshot, setViewingScreenshot] = useState<any | null>(null);
 
   
   const now = new Date().toLocaleString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true, day: 'numeric', month: 'short' });
@@ -476,12 +477,14 @@ export const AdminDashboard = () => {
                   <th className="px-6 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-wider">Chit Value</th>
                   <th className="px-6 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-wider">Installment</th>
                   <th className="px-6 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-wider">Payment Status</th>
+                  <th className="px-6 py-4 text-center text-xs font-bold text-neutral-500 uppercase tracking-wider">Withdrawal Status</th>
+                  <th className="px-6 py-4 text-center text-xs font-bold text-neutral-500 uppercase tracking-wider">Payment Proof</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-neutral-100 whitespace-nowrap">
                 {groupCustomers.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-6 py-12 text-center text-neutral-500">No customers enrolled in this group yet. Click "+ Add Customer" above to enroll.</td>
+                    <td colSpan={7} className="px-6 py-12 text-center text-neutral-500">No customers enrolled in this group yet. Click "+ Add Customer" above to enroll.</td>
                   </tr>
                 ) : (
                   groupCustomers.map((c) => {
@@ -495,6 +498,7 @@ export const AdminDashboard = () => {
                     // Verify if payment confirmation exists in ledger or chit record
                     const ledger = JSON.parse(localStorage.getItem('ledgerTransactions') || '[]');
                     const groupId = activeGroup.id || activeGroup.code;
+                    const cleanCPhone = (c.mobile || c.phone || '').replace(/\D/g, '');
                     const hasConfirmedPayment = 
                       chit?.paymentStatus === 'PAID' || 
                       (Number(chit?.totalPaid) > 0) || 
@@ -504,6 +508,45 @@ export const AdminDashboard = () => {
                         ((t.reference?.includes(c.id) || t.reference?.includes(c.name) || t.description?.includes(c.name) || t.description?.includes(c.id) || t.customerName === c.name || t.customerId === c.id) &&
                         (t.reference?.includes(groupId) || t.description?.includes(groupId) || t.groupId === groupId))
                       );
+
+                    // Withdrawal status calculation (Yes / No / Pending)
+                    const wReqs = JSON.parse(localStorage.getItem('withdrawalRequests') || '[]');
+                    const groupWReq = wReqs.find((w: any) => {
+                      const wPhone = (w.mobile || '').replace(/\D/g, '');
+                      return (
+                        (w.customerId === c.id || (cleanCPhone && wPhone === cleanCPhone)) &&
+                        (w.groupId === groupId || w.groupId === activeGroup.id || w.groupId === activeGroup.name || (activeGroup.name && w.groupName === activeGroup.name))
+                      );
+                    });
+
+                    const hasDisbursedInLedger = ledger.some((t: any) =>
+                      t.type === 'DEBIT' &&
+                      (t.category === 'DISBURSAL' || t.description?.toLowerCase().includes('disburs') || t.description?.toLowerCase().includes('withdraw')) &&
+                      ((t.customerId === c.id || t.customerName === c.name || t.reference?.includes(c.id) || t.description?.includes(c.id)) &&
+                       (t.groupId === groupId || t.reference?.includes(groupId) || t.description?.includes(groupId)))
+                    );
+
+                    const isWithdrawn = Boolean(chit?.isWithdrawn || (groupWReq && groupWReq.status === 'DISBURSED') || hasDisbursedInLedger);
+                    const isWithdrawalPending = Boolean(groupWReq && groupWReq.status === 'PENDING_ADMIN_DISBURSAL');
+
+                    // Payment Proof / Screenshot lookup from paymentRequests or ledger
+                    const paymentReqs = JSON.parse(localStorage.getItem('paymentRequests') || '[]');
+                    const matchedPaymentReq = paymentReqs.find((r: any) => {
+                      const rPhone = (r.mobile || '').replace(/\D/g, '');
+                      return (
+                        (r.customerId === c.id || (cleanCPhone && rPhone === cleanCPhone)) &&
+                        (r.groupId === groupId || r.groupId === activeGroup.id || r.groupId === activeGroup.name || (activeGroup.name && r.groupName === activeGroup.name)) &&
+                        (r.paymentScreenshot || r.screenshotUrl)
+                      );
+                    });
+
+                    const matchedLedgerWithProof = ledger.find((t: any) =>
+                      ((t.customerId === c.id || t.reference?.includes(c.id) || t.description?.includes(c.id)) &&
+                       (t.groupId === groupId || t.reference?.includes(groupId) || t.description?.includes(groupId))) &&
+                      (t.paymentScreenshot || t.screenshotUrl)
+                    );
+
+                    const proofUrl = matchedPaymentReq?.paymentScreenshot || matchedPaymentReq?.screenshotUrl || matchedLedgerWithProof?.paymentScreenshot || matchedLedgerWithProof?.screenshotUrl;
 
                     return (
                       <tr 
@@ -522,6 +565,50 @@ export const AdminDashboard = () => {
                           <span className={`inline-flex px-2 py-1 font-bold text-xs uppercase rounded-full ${hasConfirmedPayment ? 'bg-success-light text-success' : 'bg-danger-light text-danger'}`}>
                             {hasConfirmedPayment ? 'Paid' : 'Dues Pending'}
                           </span>
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          {isWithdrawn ? (
+                            <span className="inline-flex items-center px-2.5 py-1 font-bold text-xs rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                              <CheckCircle2 className="w-3.5 h-3.5 mr-1 text-emerald-600" />
+                              Yes {groupWReq?.disbursedRef ? `(${groupWReq.disbursedRef})` : ''}
+                            </span>
+                          ) : isWithdrawalPending ? (
+                            <span className="inline-flex items-center px-2.5 py-1 font-bold text-xs rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse mr-1"></span>
+                              Pending Claim
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2.5 py-1 font-bold text-xs rounded-full bg-neutral-100 text-neutral-600 border border-neutral-200">
+                              No
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          {proofUrl ? (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setViewingScreenshot({
+                                  imageUrl: proofUrl,
+                                  customerName: c.name,
+                                  customerId: c.id,
+                                  mobile: c.mobile || c.phone,
+                                  groupName: activeGroup.name || activeGroup.id,
+                                  amount: matchedPaymentReq?.amount || chit?.monthlyInstallment || activeGroup.value,
+                                  referenceNo: matchedPaymentReq?.referenceNo || matchedLedgerWithProof?.reference || 'N/A',
+                                  paymentMode: matchedPaymentReq?.paymentMode || 'Online Payment',
+                                  date: matchedPaymentReq?.submittedAt || matchedLedgerWithProof?.date || new Date().toISOString()
+                                });
+                              }}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-primary-50 text-primary-800 hover:bg-primary-100 border border-primary-200 shadow-2xs transition-all hover:scale-105"
+                            >
+                              <Eye className="w-3.5 h-3.5 text-primary-600" />
+                              View Proof
+                            </button>
+                          ) : (
+                            <span className="text-xs text-neutral-400 italic">No Upload</span>
+                          )}
                         </td>
                       </tr>
                     );
@@ -979,6 +1066,83 @@ export const AdminDashboard = () => {
           </div>
         </div>
       </div>
+
+      {/* Admin Payment Screenshot Viewer Modal */}
+      {viewingScreenshot && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl border border-neutral-200 overflow-hidden animate-in zoom-in-95 duration-150">
+            <div className="px-6 py-4 bg-primary-900 text-white flex justify-between items-center">
+              <div>
+                <h3 className="font-bold text-base flex items-center gap-2">
+                  <Eye className="w-4 h-4 text-primary-200" />
+                  Customer Payment Proof Screenshot
+                </h3>
+                <p className="text-xs text-primary-200 mt-0.5">
+                  {viewingScreenshot.customerName} ({viewingScreenshot.customerId}) · {viewingScreenshot.groupName}
+                </p>
+              </div>
+              <button 
+                onClick={() => setViewingScreenshot(null)} 
+                className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {/* Transaction Metadata Card */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3.5 bg-neutral-50 rounded-xl border border-neutral-200 text-xs">
+                <div>
+                  <span className="text-neutral-500 font-semibold block text-[10px] uppercase tracking-wider">Amount Paid</span>
+                  <span className="font-bold text-neutral-900 text-sm">{formatCurrency(viewingScreenshot.amount || 0)}</span>
+                </div>
+                <div>
+                  <span className="text-neutral-500 font-semibold block text-[10px] uppercase tracking-wider">Payment Mode</span>
+                  <span className="font-bold text-primary-800">{viewingScreenshot.paymentMode}</span>
+                </div>
+                <div>
+                  <span className="text-neutral-500 font-semibold block text-[10px] uppercase tracking-wider">UTR / Ref No.</span>
+                  <span className="font-mono font-bold text-neutral-900">{viewingScreenshot.referenceNo}</span>
+                </div>
+                <div>
+                  <span className="text-neutral-500 font-semibold block text-[10px] uppercase tracking-wider">Date Submitted</span>
+                  <span className="font-semibold text-neutral-700">
+                    {new Date(viewingScreenshot.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </span>
+                </div>
+              </div>
+
+              {/* Full Image Preview Box */}
+              <div className="bg-neutral-900 rounded-xl p-2 flex items-center justify-center max-h-[55vh] overflow-auto border border-neutral-300">
+                <img 
+                  src={viewingScreenshot.imageUrl} 
+                  alt="Payment Proof" 
+                  className="max-h-[50vh] max-w-full object-contain rounded-lg shadow-md"
+                />
+              </div>
+
+              <div className="flex items-center justify-between pt-2 border-t border-neutral-100">
+                <a
+                  href={viewingScreenshot.imageUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  download={`receipt-${viewingScreenshot.customerId}.png`}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-primary-700 bg-primary-50 hover:bg-primary-100 border border-primary-200 transition-colors"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" /> Open / Download Full Resolution
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setViewingScreenshot(null)}
+                  className="px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-lg text-xs font-bold transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
