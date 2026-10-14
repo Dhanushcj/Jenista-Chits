@@ -24,6 +24,8 @@ export const CustomerLoginPage = () => {
         login('mock-jwt-token-customer', {
           id: '2',
           name: 'Customer Demo',
+          phone: '9840123456',
+          mobile: '9840123456',
           role: 'CUSTOMER',
           permissions: ['customer.read']
         });
@@ -69,6 +71,8 @@ export const CustomerLoginPage = () => {
         login(`token-${customer.id}`, {
           id: customer.id,
           name: customer.name || customer.fullName,
+          phone: customer.mobile || customer.phone || '',
+          mobile: customer.mobile || customer.phone || '',
           role: 'CUSTOMER',
           permissions: ['customer.read']
         });

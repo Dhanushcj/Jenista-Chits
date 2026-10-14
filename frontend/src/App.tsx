@@ -8,6 +8,7 @@ import { AuthProvider } from './store/AuthContext';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { AdminLayout } from './components/layout/AdminLayout';
 import { AdminDashboard } from './pages/admin/AdminDashboard';
+import { StaffDashboard } from './pages/staff/StaffDashboard';
 import { ManagePlans } from './pages/admin/ManagePlans';
 import { CustomerList } from './pages/admin/customers/CustomerList';
 import { CustomerProfile } from './pages/admin/customers/CustomerProfile';
@@ -20,6 +21,7 @@ import { Settings } from './pages/admin/management/Settings';
 import { ReceiptEntry } from './pages/admin/finance/ReceiptEntry';
 import { NonPayersReport } from './pages/admin/reports/NonPayersReport';
 import { Payments } from './pages/admin/finance/Payments';
+import { ManageBanks } from './pages/admin/finance/ManageBanks';
 import { CustomerDashboard } from './pages/customer/CustomerDashboard';
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -47,6 +49,7 @@ function App() {
             <Route path="/customer/dashboard" element={<CustomerDashboard />} />
             <Route element={<AdminLayout />}>
               <Route path="/admin/dashboard" element={<AdminDashboard />} />
+              <Route path="/staff/dashboard" element={<StaffDashboard />} />
               <Route path="/admin/manage-plans" element={<ManagePlans />} />
               <Route path="/admin/customers" element={<CustomerList />} />
               <Route path="/admin/customers/add" element={<AddModifyCustomer />} />
@@ -56,6 +59,7 @@ function App() {
               <Route path="/admin/chit-groups/:id" element={<ChitGroupDetail />} />
               <Route path="/admin/ledger" element={<Ledger />} />
               <Route path="/admin/payments" element={<Payments />} />
+              <Route path="/admin/banks" element={<ManageBanks />} />
 
               <Route path="/admin/receipts" element={<ReceiptEntry />} />
               <Route path="/admin/settings" element={<Settings />} />

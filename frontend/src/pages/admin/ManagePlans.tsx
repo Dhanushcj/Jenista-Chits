@@ -1,7 +1,13 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Edit2, Gavel, Table, Sparkles, Eye } from 'lucide-react';
+import { Plus, Trash2, Edit2, Gavel, Table, Sparkles, Eye, Layers, ShieldCheck } from 'lucide-react';
 import { formatCurrency } from '../../utils/format';
-import { calculateFixedPlanSchedule, calculateAuctionPlanSchedule } from '../../utils/chitCalculations';
+import { 
+  calculateFixedPlanSchedule, 
+  calculateAuctionPlanSchedule, 
+  calculateRegularPlanSchedule,
+  defaultRegularCategories,
+  regularPlanTerms 
+} from '../../utils/chitCalculations';
 
 interface CategoryItem {
   id: number;
@@ -23,8 +29,13 @@ const defaultAuctionCategories: CategoryItem[] = [
 ];
 
 export const ManagePlans = () => {
-  const [activeTab, setActiveTab] = useState<'fixed' | 'auction'>('fixed');
+  const [activeTab, setActiveTab] = useState<'regular' | 'fixed' | 'auction'>('regular');
   
+  const [regularCategories, setRegularCategories] = useState<CategoryItem[]>(() => {
+    const saved = localStorage.getItem('mockRegularCategories');
+    return saved ? JSON.parse(saved) : defaultRegularCategories;
+  });
+
   const [fixedCategories, setFixedCategories] = useState<CategoryItem[]>(() => {
     const saved = localStorage.getItem('mockFixedCategories');
     return saved ? JSON.parse(saved) : defaultFixedCategories;
@@ -42,25 +53,32 @@ export const ManagePlans = () => {
   const [modalMode, setModalMode] = useState<'add' | 'edit'>('add');
   const [editingId, setEditingId] = useState<number | null>(null);
   const [inputValue, setInputValue] = useState<string>('300000');
-  const [modalSchemeType, setModalSchemeType] = useState<'fixed' | 'auction'>('fixed');
+  const [modalSchemeType, setModalSchemeType] = useState<'regular' | 'fixed' | 'auction'>('regular');
 
   // Full Schedule Modal
   const [viewScheduleValue, setViewScheduleValue] = useState<number | null>(null);
 
   useEffect(() => {
+    localStorage.setItem('mockRegularCategories', JSON.stringify(regularCategories));
     localStorage.setItem('mockFixedCategories', JSON.stringify(fixedCategories));
     localStorage.setItem('mockAuctionCategories', JSON.stringify(auctionCategories));
     
     // Also sync mockPlans for backward compatibility
     const syncedPlans = [
+      { id: 'regular', title: 'Manage Regular Categories', categories: regularCategories },
       { id: 'fixed', title: 'Manage Fixed Categories', categories: fixedCategories },
       { id: 'auction', title: 'Manage Auction Categories', categories: auctionCategories }
     ];
     localStorage.setItem('mockPlans', JSON.stringify(syncedPlans));
-  }, [fixedCategories, auctionCategories]);
+  }, [regularCategories, fixedCategories, auctionCategories]);
 
   // Keep selected category valid
-  const currentCategories = activeTab === 'fixed' ? fixedCategories : auctionCategories;
+  const currentCategories = activeTab === 'regular' 
+    ? regularCategories 
+    : activeTab === 'fixed' 
+      ? fixedCategories 
+      : auctionCategories;
+
   useEffect(() => {
     if (currentCategories.length > 0 && !currentCategories.some(c => c.value === selectedCategoryValue)) {
       setSelectedCategoryValue(currentCategories[0].value);
@@ -85,12 +103,12 @@ export const ManagePlans = () => {
 
   const handleDelete = (id: number) => {
     if (window.confirm('Are you sure you want to delete this category?')) {
-      if (activeTab === 'fixed') {
-        const updated = fixedCategories.filter(c => c.id !== id);
-        setFixedCategories(updated);
+      if (activeTab === 'regular') {
+        setRegularCategories(regularCategories.filter(c => c.id !== id));
+      } else if (activeTab === 'fixed') {
+        setFixedCategories(fixedCategories.filter(c => c.id !== id));
       } else {
-        const updated = auctionCategories.filter(c => c.id !== id);
-        setAuctionCategories(updated);
+        setAuctionCategories(auctionCategories.filter(c => c.id !== id));
       }
     }
   };
@@ -104,18 +122,26 @@ export const ManagePlans = () => {
     }
 
     if (modalMode === 'add') {
-      const targetList = modalSchemeType === 'fixed' ? fixedCategories : auctionCategories;
+      const targetList = modalSchemeType === 'regular' 
+        ? regularCategories 
+        : modalSchemeType === 'fixed' 
+          ? fixedCategories 
+          : auctionCategories;
       const nextId = targetList.length > 0 ? Math.max(...targetList.map(c => c.id)) + 1 : 1;
       const newItem = { id: nextId, value: val };
       
-      if (modalSchemeType === 'fixed') {
+      if (modalSchemeType === 'regular') {
+        setRegularCategories(prev => [...prev.filter(c => c.value !== val), newItem].sort((a,b) => a.value - b.value));
+      } else if (modalSchemeType === 'fixed') {
         setFixedCategories(prev => [...prev.filter(c => c.value !== val), newItem].sort((a,b) => a.value - b.value));
       } else {
         setAuctionCategories(prev => [...prev.filter(c => c.value !== val), newItem].sort((a,b) => a.value - b.value));
       }
       setSelectedCategoryValue(val);
     } else if (modalMode === 'edit' && editingId !== null) {
-      if (modalSchemeType === 'fixed') {
+      if (modalSchemeType === 'regular') {
+        setRegularCategories(prev => prev.map(c => c.id === editingId ? { ...c, value: val } : c).sort((a,b) => a.value - b.value));
+      } else if (modalSchemeType === 'fixed') {
         setFixedCategories(prev => prev.map(c => c.id === editingId ? { ...c, value: val } : c).sort((a,b) => a.value - b.value));
       } else {
         setAuctionCategories(prev => prev.map(c => c.id === editingId ? { ...c, value: val } : c).sort((a,b) => a.value - b.value));
@@ -128,6 +154,7 @@ export const ManagePlans = () => {
 
   const handleResetDefaults = () => {
     if (window.confirm('Reset categories to default Jenista Chits standard plans?')) {
+      setRegularCategories(defaultRegularCategories);
       setFixedCategories(defaultFixedCategories);
       setAuctionCategories(defaultAuctionCategories);
       setSelectedCategoryValue(100000);
@@ -136,10 +163,12 @@ export const ManagePlans = () => {
 
   // Preview calculations inside modal
   const previewValue = parseInt(inputValue, 10) || 100000;
+  const previewRegular = calculateRegularPlanSchedule(previewValue);
   const previewFixed = calculateFixedPlanSchedule(previewValue);
   const previewAuction = calculateAuctionPlanSchedule(previewValue);
 
   // Active category calculation for the table
+  const activeRegularDetails = calculateRegularPlanSchedule(selectedCategoryValue);
   const activeFixedDetails = calculateFixedPlanSchedule(selectedCategoryValue);
   const activeAuctionDetails = calculateAuctionPlanSchedule(selectedCategoryValue);
 
@@ -156,7 +185,7 @@ export const ManagePlans = () => {
             </span>
           </div>
           <p className="text-xs md:text-sm text-neutral-500 mt-1">
-            Configure Fixed and Auction chit values. Schedules and dues are automatically computed across 20 months.
+            Configure Regular, Fixed, and Auction chit values. Schedules and dues are automatically computed across 20 months.
           </p>
         </div>
 
@@ -177,12 +206,29 @@ export const ManagePlans = () => {
       </div>
 
       {/* Scheme Mode Selector Tabs */}
-      <div className="flex border-b border-neutral-200 space-x-2">
+      <div className="flex border-b border-neutral-200 space-x-2 overflow-x-auto pb-1">
+        {/* Regular Plans Tab */}
+        <button
+          onClick={() => setActiveTab('regular')}
+          className={`pb-3 px-5 font-bold text-sm border-b-2 flex items-center shrink-0 transition-all ${
+            activeTab === 'regular'
+              ? 'border-amber-600 text-amber-900 bg-amber-50/30'
+              : 'border-transparent text-neutral-500 hover:text-neutral-700'
+          }`}
+        >
+          <Layers className="w-4 h-4 mr-2 text-amber-600" />
+          Regular Plans ({regularCategories.length} Categories)
+          <span className="ml-2 px-2 py-0.5 text-[10px] bg-amber-100 text-amber-800 font-extrabold rounded-full">
+            20 Months • Brochure
+          </span>
+        </button>
+
+        {/* Fixed Plans Tab */}
         <button
           onClick={() => setActiveTab('fixed')}
-          className={`pb-3 px-5 font-bold text-sm border-b-2 flex items-center transition-all ${
+          className={`pb-3 px-5 font-bold text-sm border-b-2 flex items-center shrink-0 transition-all ${
             activeTab === 'fixed'
-              ? 'border-emerald-700 text-emerald-900'
+              ? 'border-emerald-700 text-emerald-900 bg-emerald-50/30'
               : 'border-transparent text-neutral-500 hover:text-neutral-700'
           }`}
         >
@@ -193,11 +239,12 @@ export const ManagePlans = () => {
           </span>
         </button>
 
+        {/* Auction Plans Tab */}
         <button
           onClick={() => setActiveTab('auction')}
-          className={`pb-3 px-5 font-bold text-sm border-b-2 flex items-center transition-all ${
+          className={`pb-3 px-5 font-bold text-sm border-b-2 flex items-center shrink-0 transition-all ${
             activeTab === 'auction'
-              ? 'border-purple-700 text-purple-900'
+              ? 'border-purple-700 text-purple-900 bg-purple-50/30'
               : 'border-transparent text-neutral-500 hover:text-neutral-700'
           }`}
         >
@@ -213,6 +260,7 @@ export const ManagePlans = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {currentCategories.map((cat) => {
           const isSelected = selectedCategoryValue === cat.value;
+          const regularCalc = calculateRegularPlanSchedule(cat.value);
           const fixedCalc = calculateFixedPlanSchedule(cat.value);
           const auctionCalc = calculateAuctionPlanSchedule(cat.value);
 
@@ -222,16 +270,22 @@ export const ManagePlans = () => {
               onClick={() => setSelectedCategoryValue(cat.value)}
               className={`p-5 rounded-2xl border-2 transition-all cursor-pointer relative flex flex-col justify-between ${
                 isSelected
-                  ? activeTab === 'fixed'
-                    ? 'border-emerald-600 bg-emerald-50/40 shadow-md ring-2 ring-emerald-600/20'
-                    : 'border-purple-600 bg-purple-50/40 shadow-md ring-2 ring-purple-600/20'
+                  ? activeTab === 'regular'
+                    ? 'border-amber-600 bg-amber-50/40 shadow-md ring-2 ring-amber-600/20'
+                    : activeTab === 'fixed'
+                      ? 'border-emerald-600 bg-emerald-50/40 shadow-md ring-2 ring-emerald-600/20'
+                      : 'border-purple-600 bg-purple-50/40 shadow-md ring-2 ring-purple-600/20'
                   : 'border-neutral-200 bg-white hover:border-neutral-300 hover:shadow-sm'
               }`}
             >
               <div>
                 <div className="flex justify-between items-start mb-3">
                   <span className={`text-[10px] uppercase font-black px-2 py-0.5 rounded-full ${
-                    activeTab === 'fixed' ? 'bg-emerald-700 text-white' : 'bg-purple-700 text-white'
+                    activeTab === 'regular' 
+                      ? 'bg-amber-600 text-white' 
+                      : activeTab === 'fixed' 
+                        ? 'bg-emerald-700 text-white' 
+                        : 'bg-purple-700 text-white'
                   }`}>
                     20 Months
                   </span>
@@ -260,7 +314,30 @@ export const ManagePlans = () => {
 
                 {/* Auto calculated stats */}
                 <div className="mt-4 pt-3 border-t border-neutral-100 space-y-1.5 text-xs">
-                  {activeTab === 'fixed' ? (
+                  {activeTab === 'regular' ? (
+                    <>
+                      <div className="flex justify-between text-neutral-600 font-medium">
+                        <span>Months 2-8 Due:</span>
+                        <strong className="text-amber-900 font-bold">{formatCurrency(regularCalc.minDue)}</strong>
+                      </div>
+                      <div className="flex justify-between text-neutral-600 font-medium">
+                        <span>Total 20M Investment:</span>
+                        <strong className="text-neutral-900 font-extrabold">{formatCurrency(regularCalc.totalDue)}</strong>
+                      </div>
+                      <div className="flex justify-between text-neutral-600 font-medium">
+                        <span>Min Payout (M2-8):</span>
+                        <strong className="text-neutral-900">{formatCurrency(regularCalc.minPayout)} (70%)</strong>
+                      </div>
+                      <div className="flex justify-between text-neutral-600 font-medium">
+                        <span>Month 20 Payout:</span>
+                        <strong className="text-emerald-700 font-bold">{formatCurrency(regularCalc.maxPayout)} (95%)</strong>
+                      </div>
+                      <div className="flex justify-between text-neutral-600 font-medium pt-1 border-t border-neutral-100/60">
+                        <span>Total Dividends:</span>
+                        <strong className="text-emerald-700">+{formatCurrency(regularCalc.totalDividends)}</strong>
+                      </div>
+                    </>
+                  ) : activeTab === 'fixed' ? (
                     <>
                       <div className="flex justify-between text-neutral-600 font-medium">
                         <span>Monthly Due:</span>
@@ -303,7 +380,15 @@ export const ManagePlans = () => {
               </div>
 
               <div className="mt-4 pt-3 border-t border-neutral-100 flex items-center justify-between text-xs">
-                <span className={`font-bold ${isSelected ? (activeTab === 'fixed' ? 'text-emerald-800' : 'text-purple-800') : 'text-neutral-400'}`}>
+                <span className={`font-bold ${
+                  isSelected 
+                    ? activeTab === 'regular' 
+                      ? 'text-amber-800' 
+                      : activeTab === 'fixed' 
+                        ? 'text-emerald-800' 
+                        : 'text-purple-800'
+                    : 'text-neutral-400'
+                }`}>
                   {isSelected ? '● Active in Table' : 'Click to inspect'}
                 </span>
                 <button
@@ -324,32 +409,116 @@ export const ManagePlans = () => {
       {/* Live Auto-Calculated 20-Month Schedule Table for Selected Plan */}
       <div className="bg-white rounded-2xl shadow-sm border border-neutral-200 overflow-hidden">
         <div className={`px-6 py-4 flex flex-col sm:flex-row justify-between sm:items-center gap-3 text-white ${
-          activeTab === 'fixed' ? 'bg-emerald-900' : 'bg-purple-950'
+          activeTab === 'regular' 
+            ? 'bg-amber-900' 
+            : activeTab === 'fixed' 
+              ? 'bg-emerald-900' 
+              : 'bg-purple-950'
         }`}>
           <div className="flex items-center gap-3">
             <div className="p-2 bg-white/10 rounded-xl">
-              {activeTab === 'fixed' ? <Table className="w-5 h-5" /> : <Gavel className="w-5 h-5 text-amber-300" />}
+              {activeTab === 'regular' ? (
+                <Layers className="w-5 h-5 text-amber-300" />
+              ) : activeTab === 'fixed' ? (
+                <Table className="w-5 h-5" />
+              ) : (
+                <Gavel className="w-5 h-5 text-amber-300" />
+              )}
             </div>
             <div>
               <h3 className="font-extrabold text-base md:text-lg">
-                {activeTab === 'fixed' ? 'Fixed Plan Auto-Calculated Schedule' : 'Auction Plan Auto-Calculated Schedule'} • {formatCurrency(selectedCategoryValue)}
+                {activeTab === 'regular' 
+                  ? 'Regular Plan Auto-Calculated Schedule' 
+                  : activeTab === 'fixed' 
+                    ? 'Fixed Plan Auto-Calculated Schedule' 
+                    : 'Auction Plan Auto-Calculated Schedule'} • {formatCurrency(selectedCategoryValue)}
               </h3>
               <p className="text-xs text-white/80">
-                20 Months • 20 Members • Generated dynamically from formula
+                20 Months • 20 Members • {activeTab === 'regular' ? 'Based on Official Jenista Chits Pamphlet' : 'Generated dynamically from formula'}
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
             <span className="text-xs px-3 py-1 bg-white/10 rounded-full font-bold">
-              Formula: {activeTab === 'fixed' ? 'Payout = Value × (95% + (Month-1)×1%)' : 'Max 30% Bid Cap + 5% Foreman Comm.'}
+              Formula: {
+                activeTab === 'regular' 
+                  ? 'M1: 5% (Company) | M2-8: 3.75% Due, 70% Payout | Total: ₹' + activeRegularDetails.totalDue.toLocaleString('en-IN')
+                  : activeTab === 'fixed' 
+                    ? 'Payout = Value × (95% + (Month-1)×1%)' 
+                    : 'Max 30% Bid Cap + 5% Foreman Comm.'
+              }
             </span>
           </div>
         </div>
 
         {/* Schedule Table */}
         <div className="overflow-x-auto">
-          {activeTab === 'fixed' ? (
+          {activeTab === 'regular' ? (
+            <table className="min-w-full divide-y divide-neutral-200 text-center text-xs md:text-sm font-sans">
+              <thead className="bg-amber-50/70 text-amber-950 font-bold uppercase tracking-wider text-[11px]">
+                <tr>
+                  <th className="px-4 py-3 border-r border-neutral-200 w-24">Month</th>
+                  <th className="px-4 py-3 border-r border-neutral-200">Due (₹)</th>
+                  <th className="px-4 py-3 border-r border-neutral-200 text-amber-900 bg-amber-100/50">Payment / Payout (₹)</th>
+                  <th className="px-4 py-3 border-r border-neutral-200 text-emerald-900 bg-emerald-50/50">Dividend Savings</th>
+                  <th className="px-4 py-3">Bid Discount %</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-100 font-semibold text-neutral-800">
+                {activeRegularDetails.schedule.map((row) => (
+                  <tr key={row.month} className="hover:bg-amber-50/30 transition-colors">
+                    <td className="py-2.5 px-4 font-bold bg-neutral-50 border-r border-neutral-200">
+                      Month {row.month}
+                    </td>
+                    <td className="py-2.5 px-4 border-r border-neutral-200 font-bold text-neutral-900">
+                      {formatCurrency(row.due)}
+                    </td>
+                    <td className="py-2.5 px-4 border-r border-neutral-200 font-black">
+                      {row.isCompany ? (
+                        <span className="px-3 py-1 bg-amber-200 text-amber-900 font-black rounded text-xs inline-block">
+                          COMPANY
+                        </span>
+                      ) : (
+                        <span className="text-amber-950 font-extrabold">
+                          {formatCurrency(row.payment)}
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-2.5 px-4 border-r border-neutral-200 text-emerald-800 font-bold bg-emerald-50/20">
+                      {row.dividend > 0 ? `+ ${formatCurrency(row.dividend)}` : '—'}
+                    </td>
+                    <td className="py-2.5 px-4 text-neutral-600">
+                      {row.isCompany ? (
+                        <span className="text-xs text-neutral-400">Foreman Chit</span>
+                      ) : (
+                        <span className="text-xs font-bold text-neutral-700">{row.bidDiscountPct}%</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+                
+                {/* TOTAL ROW matching the pamphlet */}
+                <tr className="bg-amber-100/80 font-black text-amber-950 text-sm border-t-2 border-amber-300">
+                  <td className="py-3 px-4 uppercase font-black tracking-wider border-r border-amber-200 bg-amber-200/80">
+                    TOTAL
+                  </td>
+                  <td className="py-3 px-4 border-r border-amber-200 text-amber-950 text-base">
+                    {formatCurrency(activeRegularDetails.totalDue)}
+                  </td>
+                  <td className="py-3 px-4 border-r border-amber-200 text-amber-950 text-base">
+                    {formatCurrency(activeRegularDetails.maxPayout)}
+                  </td>
+                  <td className="py-3 px-4 border-r border-amber-200 text-emerald-800 text-base">
+                    + {formatCurrency(activeRegularDetails.totalDividends)}
+                  </td>
+                  <td className="py-3 px-4 text-amber-900 text-xs font-bold">
+                    15.65% Total Savings
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          ) : activeTab === 'fixed' ? (
             <table className="min-w-full divide-y divide-neutral-200 text-center text-xs md:text-sm font-sans">
               <thead className="bg-neutral-50 text-neutral-700 font-bold uppercase tracking-wider text-[11px]">
                 <tr>
@@ -424,6 +593,37 @@ export const ManagePlans = () => {
             </table>
           )}
         </div>
+
+        {/* Regular Scheme Official Terms & Conditions (Matching bottom of Image 2) */}
+        {activeTab === 'regular' && (
+          <div className="p-6 bg-gradient-to-r from-amber-50 via-yellow-50 to-amber-50 border-t border-amber-200">
+            <div className="flex items-center gap-2 mb-3">
+              <ShieldCheck className="w-5 h-5 text-amber-700" />
+              <h4 className="font-black text-amber-950 text-base tracking-wide">
+                நிபந்தனைகள் (Terms & Conditions)
+              </h4>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+              {regularPlanTerms.map((term) => (
+                <div key={term.id} className="p-3 bg-white/90 rounded-xl border border-amber-200/80 shadow-xs flex items-start gap-2.5">
+                  <span className="w-5 h-5 rounded-full bg-amber-500 text-white font-black text-xs flex items-center justify-center shrink-0 mt-0.5">
+                    {term.id}
+                  </span>
+                  <div>
+                    <p className="font-bold text-neutral-900 leading-snug">{term.tamil}</p>
+                    <p className="text-neutral-500 mt-1 text-[11px] leading-relaxed">{term.english}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-4 pt-3 border-t border-amber-200/60 flex flex-wrap items-center justify-between text-[11px] text-amber-900 font-medium">
+              <span>JENISTA CHITS PVT. LTD. • CIN: U67190TZ2020PTC033361</span>
+              <span>Branch: Hosur | Head Office: Thoothukudi | Mob: 70942 95556, 70940 45556</span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Add / Edit Category Modal with LIVE Auto-Calculation Preview */}
@@ -447,11 +647,23 @@ export const ManagePlans = () => {
                 <label className="block text-xs font-bold text-neutral-700 uppercase tracking-wide mb-1.5">
                   Scheme Type
                 </label>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setModalSchemeType('regular')}
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold flex flex-col items-center justify-center gap-1 transition-all ${
+                      modalSchemeType === 'regular'
+                        ? 'border-amber-600 bg-amber-50 text-amber-900 ring-2 ring-amber-500/20'
+                        : 'border-neutral-200 text-neutral-600 hover:bg-neutral-50'
+                    }`}
+                  >
+                    <Layers className="w-4 h-4 text-amber-600" /> Regular Scheme
+                  </button>
+
                   <button
                     type="button"
                     onClick={() => setModalSchemeType('fixed')}
-                    className={`py-2.5 px-4 rounded-xl border text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold flex flex-col items-center justify-center gap-1 transition-all ${
                       modalSchemeType === 'fixed'
                         ? 'border-emerald-600 bg-emerald-50 text-emerald-900 ring-2 ring-emerald-500/20'
                         : 'border-neutral-200 text-neutral-600 hover:bg-neutral-50'
@@ -463,7 +675,7 @@ export const ManagePlans = () => {
                   <button
                     type="button"
                     onClick={() => setModalSchemeType('auction')}
-                    className={`py-2.5 px-4 rounded-xl border text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold flex flex-col items-center justify-center gap-1 transition-all ${
                       modalSchemeType === 'auction'
                         ? 'border-purple-600 bg-purple-50 text-purple-900 ring-2 ring-purple-500/20'
                         : 'border-neutral-200 text-neutral-600 hover:bg-neutral-50'
@@ -500,13 +712,36 @@ export const ManagePlans = () => {
 
               {/* Live Auto-Calculation Preview Card */}
               <div className={`p-4 rounded-xl border space-y-3 ${
-                modalSchemeType === 'fixed' ? 'bg-emerald-50/50 border-emerald-200' : 'bg-purple-50/50 border-purple-200'
+                modalSchemeType === 'regular' 
+                  ? 'bg-amber-50/50 border-amber-200'
+                  : modalSchemeType === 'fixed' 
+                    ? 'bg-emerald-50/50 border-emerald-200' 
+                    : 'bg-purple-50/50 border-purple-200'
               }`}>
                 <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-neutral-700">
                   <Sparkles className="w-3.5 h-3.5 text-amber-500" /> Live Auto-Calculation Preview (20 Months)
                 </div>
 
-                {modalSchemeType === 'fixed' ? (
+                {modalSchemeType === 'regular' ? (
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="bg-white p-2.5 rounded-lg border border-amber-100">
+                      <span className="text-neutral-500 block">Due (M2-M8):</span>
+                      <strong className="text-amber-900 text-sm">{formatCurrency(previewRegular.minDue)}</strong>
+                    </div>
+                    <div className="bg-white p-2.5 rounded-lg border border-amber-100">
+                      <span className="text-neutral-500 block">Total 20M Due:</span>
+                      <strong className="text-neutral-900 text-sm">{formatCurrency(previewRegular.totalDue)}</strong>
+                    </div>
+                    <div className="bg-white p-2.5 rounded-lg border border-amber-100">
+                      <span className="text-neutral-500 block">Payout (M2-8):</span>
+                      <strong className="text-neutral-900 text-sm">{formatCurrency(previewRegular.minPayout)} (70%)</strong>
+                    </div>
+                    <div className="bg-white p-2.5 rounded-lg border border-amber-100">
+                      <span className="text-neutral-500 block">Payout (M20):</span>
+                      <strong className="text-emerald-700 text-sm">{formatCurrency(previewRegular.maxPayout)} (95%)</strong>
+                    </div>
+                  </div>
+                ) : modalSchemeType === 'fixed' ? (
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     <div className="bg-white p-2.5 rounded-lg border border-emerald-100">
                       <span className="text-neutral-500 block">Monthly Due:</span>
@@ -577,7 +812,7 @@ export const ManagePlans = () => {
                   Complete 20 Months Schedule • {formatCurrency(viewScheduleValue)}
                 </h3>
                 <p className="text-xs text-neutral-500">
-                  {activeTab === 'fixed' ? 'Fixed Plan' : 'Auction Plan'} • 20 Members
+                  {activeTab === 'regular' ? 'Regular Plan (Brochure Standard)' : activeTab === 'fixed' ? 'Fixed Plan' : 'Auction Plan'} • 20 Members
                 </p>
               </div>
               <button
@@ -589,7 +824,50 @@ export const ManagePlans = () => {
             </div>
 
             <div className="p-4 overflow-y-auto max-h-[70vh]">
-              {activeTab === 'fixed' ? (
+              {activeTab === 'regular' ? (
+                <table className="min-w-full divide-y divide-neutral-200 text-center text-xs">
+                  <thead className="bg-amber-100 font-bold text-amber-950 uppercase">
+                    <tr>
+                      <th className="py-2.5 px-3">Month</th>
+                      <th className="py-2.5 px-3">Monthly Due</th>
+                      <th className="py-2.5 px-3 text-amber-900">Payment / Payout</th>
+                      <th className="py-2.5 px-3 text-emerald-800">Dividend Savings</th>
+                      <th className="py-2.5 px-3">Bid Discount</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-neutral-100 font-semibold">
+                    {calculateRegularPlanSchedule(viewScheduleValue).schedule.map(r => (
+                      <tr key={r.month} className="hover:bg-amber-50/40">
+                        <td className="py-2 px-3 font-bold">Month {r.month}</td>
+                        <td className="py-2 px-3 font-bold">{formatCurrency(r.due)}</td>
+                        <td className="py-2 px-3">
+                          {r.isCompany ? (
+                            <span className="px-2 py-0.5 bg-amber-200 text-amber-900 rounded font-black text-[11px]">
+                              COMPANY
+                            </span>
+                          ) : (
+                            <span className="font-black text-amber-950">{formatCurrency(r.payment)}</span>
+                          )}
+                        </td>
+                        <td className="py-2 px-3 text-emerald-800 font-bold">
+                          {r.dividend > 0 ? `+${formatCurrency(r.dividend)}` : '—'}
+                        </td>
+                        <td className="py-2 px-3 text-neutral-600">
+                          {r.isCompany ? 'Foreman' : `${r.bidDiscountPct}%`}
+                        </td>
+                      </tr>
+                    ))}
+                    {/* Modal Total Row */}
+                    <tr className="bg-amber-100 font-black text-amber-950 border-t-2 border-amber-300">
+                      <td className="py-2.5 px-3 uppercase">TOTAL</td>
+                      <td className="py-2.5 px-3">{formatCurrency(calculateRegularPlanSchedule(viewScheduleValue).totalDue)}</td>
+                      <td className="py-2.5 px-3">{formatCurrency(calculateRegularPlanSchedule(viewScheduleValue).maxPayout)}</td>
+                      <td className="py-2.5 px-3 text-emerald-800">+{formatCurrency(calculateRegularPlanSchedule(viewScheduleValue).totalDividends)}</td>
+                      <td className="py-2.5 px-3 text-xs">84.35% Due</td>
+                    </tr>
+                  </tbody>
+                </table>
+              ) : activeTab === 'fixed' ? (
                 <table className="min-w-full divide-y divide-neutral-200 text-center text-xs">
                   <thead className="bg-neutral-100 font-bold text-neutral-700 uppercase">
                     <tr>

@@ -5,8 +5,11 @@ import { Search, User, Phone, Lock, Eye, EyeOff, ShieldCheck } from 'lucide-reac
 import { Input } from '../../../components/common/Input';
 import { Button } from '../../../components/common/Button';
 import { fetchClient } from '../../../api/client';
+import { useAuth } from '../../../store/AuthContext';
 
 export const AddModifyCustomer = () => {
+  const { user } = useAuth();
+  const isStaff = user?.role === 'STAFF';
   const [activeAction, setActiveAction] = useState<ActionType>('ADD');
   const [hasSearched, setHasSearched] = useState(false);
   const [searchId, setSearchId] = useState('');
@@ -96,28 +99,10 @@ export const AddModifyCustomer = () => {
               <h4 className="text-lg font-bold text-neutral-800">Personal Details</h4>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="max-w-md">
               <div>
                 <label className="block text-sm font-semibold text-neutral-700 mb-1">Full Name *</label>
                 <Input name="name" defaultValue={customer?.name || ""} placeholder="Enter full name" disabled={disabled} required />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-neutral-700 mb-1">Date of Birth</label>
-                <Input name="dob" type="date" defaultValue={customer?.dob || ""} disabled={disabled} />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-neutral-700 mb-1">Gender</label>
-                <select 
-                  name="gender"
-                  disabled={disabled} 
-                  defaultValue={customer?.gender || ""}
-                  className="w-full h-[42px] px-3 py-2 bg-white border border-neutral-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-900 focus:border-transparent disabled:bg-neutral-50 disabled:text-neutral-400 disabled:cursor-not-allowed"
-                >
-                  <option value="">Select gender</option>
-                  <option value="Male">Male</option>
-                  <option value="Female">Female</option>
-                  <option value="Other">Other</option>
-                </select>
               </div>
             </div>
           </section>
@@ -386,10 +371,12 @@ export const AddModifyCustomer = () => {
           mobile: cleanMobile,
           phone: cleanMobile,
           password: passwordVal,
-          dob: formData.get('dob') as string,
-          gender: formData.get('gender') as string,
+          dob: (formData.get('dob') as string) || '',
+          gender: (formData.get('gender') as string) || '',
           address: addressVal,
-          status: 'ACTIVE',
+          status: isStaff ? 'PENDING_APPROVAL' : 'ACTIVE',
+          referredBy: user?.name || (isStaff ? 'Staff User' : 'Admin User'),
+          registeredBy: user?.name || (isStaff ? 'Staff User' : 'Admin User'),
           chits: [],
           pending: 0,
           totalPaid: 0,
@@ -408,7 +395,8 @@ export const AddModifyCustomer = () => {
               address: addressVal,
               password: passwordVal,
               gender: newCustomer.gender ? newCustomer.gender.toUpperCase() : undefined,
-              status: 'ACTIVE'
+              status: isStaff ? 'PENDING_APPROVAL' : 'ACTIVE',
+              referredBy: newCustomer.referredBy,
             })
           });
           if (res && res.data) {
@@ -430,7 +418,12 @@ export const AddModifyCustomer = () => {
           return updated;
         });
         window.dispatchEvent(new Event('storage'));
-        alert(`Success: Customer ${newCustomer.name} has been successfully registered!\n\nCustomer Login Credentials:\nUser Name (Mobile Number): ${newCustomer.mobile}\nPassword: ${passwordVal}`);
+        
+        if (isStaff) {
+          alert(`Success: Customer ${newCustomer.name} has been enrolled and submitted for Admin verification!\n\nApproval Status: Pending Admin Verification`);
+        } else {
+          alert(`Success: Customer ${newCustomer.name} has been successfully registered and activated!\n\nCustomer Login Credentials:\nUser Name (Mobile Number): ${newCustomer.mobile}\nPassword: ${passwordVal}`);
+        }
       } else {
         alert('Success: New customer has been successfully registered!');
       }

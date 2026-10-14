@@ -18,26 +18,15 @@ import {
 } from 'lucide-react';
 import { fetchClient } from '../../../api/client';
 import { printCashReceipt } from '../../../utils/receiptPrinter';
+import type { PaymentRequest } from '../../../utils/paymentRequestsData';
+import {
+  getStoredPaymentRequests,
+  isPendingPayment,
+  approvePaymentRequestAction,
+  rejectPaymentRequestAction
+} from '../../../utils/paymentRequestsData';
 
 type TabType = 'VERIFICATION' | 'WITHDRAWALS' | 'DIRECT_ENTRY';
-
-interface PaymentRequest {
-  id: string;
-  customerId: string;
-  customerName: string;
-  mobile: string;
-  groupId: string;
-  groupName?: string;
-  ticketNumber?: string;
-  amount: number;
-  paymentMode: string;
-  referenceNo: string;
-  paymentScreenshot?: string;
-  screenshotUrl?: string;
-  submittedAt: string;
-  status: 'PENDING_VERIFICATION' | 'APPROVED' | 'REJECTED';
-  remarks?: string;
-}
 
 interface WithdrawalRequest {
   id: string;
@@ -108,7 +97,7 @@ export const Payments = () => {
   // Load data
   const loadData = () => {
     // Payment requests
-    const reqs = JSON.parse(localStorage.getItem('paymentRequests') || '[]');
+    const reqs = getStoredPaymentRequests();
     setPaymentRequests(reqs);
 
     // Withdrawal requests
@@ -166,12 +155,12 @@ export const Payments = () => {
     };
   }, []);
 
-  const pendingCount = paymentRequests.filter(r => r.status === 'PENDING_VERIFICATION').length;
+  const pendingCount = paymentRequests.filter(r => isPendingPayment(r.status)).length;
   const pendingWithdrawalCount = withdrawalRequests.filter(r => r.status === 'PENDING_ADMIN_DISBURSAL').length;
 
   // Filter requests
   const filteredRequests = paymentRequests.filter(req => {
-    if (filterStatus === 'PENDING' && req.status !== 'PENDING_VERIFICATION') return false;
+    if (filterStatus === 'PENDING' && !isPendingPayment(req.status)) return false;
     if (filterStatus === 'APPROVED' && req.status !== 'APPROVED') return false;
     if (filterStatus === 'REJECTED' && req.status !== 'REJECTED') return false;
 
@@ -192,104 +181,8 @@ export const Payments = () => {
     setActionInProgress(req.id);
 
     try {
-      // 1. Update Payment Request status
-      const allReqs = JSON.parse(localStorage.getItem('paymentRequests') || '[]');
-      const updatedReqs = allReqs.map((r: any) => 
-        r.id === req.id ? { ...r, status: 'APPROVED', verifiedAt: new Date().toISOString() } : r
-      );
-      localStorage.setItem('paymentRequests', JSON.stringify(updatedReqs));
-
-      // 2. Add to ledgerTransactions
-      const ledger = JSON.parse(localStorage.getItem('ledgerTransactions') || '[]');
-      const newLedgerEntry = {
-        id: `REC-${Date.now().toString().slice(-6)}`,
-        date: new Date().toISOString(),
-        type: 'CREDIT',
-        category: 'INSTALLMENT',
-        amount: Number(req.amount),
-        reference: `${req.customerId} / ${req.groupId}`,
-        description: `Customer Online Payment (${req.paymentMode} Ref: ${req.referenceNo}) - Verified by Admin`,
-        customerName: req.customerName,
-        customerId: req.customerId,
-        groupId: req.groupId,
-        paymentScreenshot: req.paymentScreenshot || req.screenshotUrl,
-        screenshotUrl: req.paymentScreenshot || req.screenshotUrl,
-        status: 'VERIFIED'
-      };
-      localStorage.setItem('ledgerTransactions', JSON.stringify([newLedgerEntry, ...ledger]));
-
-      // 3. Update mockCustomers (set chit status = PAID, update totalPaid & pending)
-      const customers = JSON.parse(localStorage.getItem('mockCustomers') || '[]');
-      const cleanReqPhone = (req.mobile || '').replace(/\D/g, '');
-      const updatedCustomers = customers.map((c: any) => {
-        const cPhone = (c.mobile || c.phone || '').replace(/\D/g, '');
-        if (c.id === req.customerId || (cleanReqPhone && cPhone === cleanReqPhone)) {
-          const chits = Array.isArray(c.chits) ? c.chits.map((ch: any) => {
-            if (ch.groupId === req.groupId) {
-              return { ...ch, paymentStatus: 'PAID' };
-            }
-            return ch;
-          }) : [];
-          const curPaid = Number(c.totalPaid || 0);
-          const curPending = Number(c.pending || 0);
-          return {
-            ...c,
-            chits,
-            totalPaid: curPaid + Number(req.amount),
-            pending: Math.max(0, curPending - Number(req.amount))
-          };
-        }
-        return c;
-      });
-      localStorage.setItem('mockCustomers', JSON.stringify(updatedCustomers));
-
-      // 4. Update Chit Group Memberships & enrolledMembers
-      const memberships = JSON.parse(localStorage.getItem('chitGroupMemberships') || '[]');
-      const updatedMemberships = memberships.map((m: any) => {
-        const mPhone = (m.mobile || m.phone || '').replace(/\D/g, '');
-        if ((m.customerId === req.customerId || (cleanReqPhone && mPhone === cleanReqPhone)) && m.groupId === req.groupId) {
-          return { ...m, paymentStatus: 'PAID' };
-        }
-        return m;
-      });
-      localStorage.setItem('chitGroupMemberships', JSON.stringify(updatedMemberships));
-
-      const groups = JSON.parse(localStorage.getItem('mockChitGroups') || '[]');
-      const updatedGroups = groups.map((g: any) => {
-        if (g.code === req.groupId || g.id === req.groupId) {
-          const members = Array.isArray(g.enrolledMembers) ? g.enrolledMembers.map((m: any) => {
-            const mPhone = (m.mobile || m.phone || '').replace(/\D/g, '');
-            if (m.customerId === req.customerId || (cleanReqPhone && mPhone === cleanReqPhone)) {
-              return { ...m, paymentStatus: 'PAID' };
-            }
-            return m;
-          }) : [];
-          return { ...g, enrolledMembers: members };
-        }
-        return g;
-      });
-      localStorage.setItem('mockChitGroups', JSON.stringify(updatedGroups));
-
-      // 5. Update MongoDB backend
-      const targetCust = updatedCustomers.find((c: any) => 
-        c.id === req.customerId || c.customerCode === req.customerId || (cleanReqPhone && (c.mobile || c.phone || '').replace(/\D/g, '') === cleanReqPhone)
-      );
-      const targetId = targetCust?.mongoId || targetCust?.customerCode || targetCust?.id || req.customerId;
-      if (targetId && targetCust) {
-        fetchClient(`/customers/${targetId}`, {
-          method: 'PATCH',
-          body: JSON.stringify({
-            totalPaid: targetCust.totalPaid,
-            pending: targetCust.pending,
-            chits: targetCust.chits
-          })
-        }).catch(err => console.warn('Could not sync approved payment to MongoDB:', err));
-      }
-
-      // Dispatch event to update all components in real-time
-      window.dispatchEvent(new Event('storage'));
+      approvePaymentRequestAction(req);
       loadData();
-
       setActionSuccessMsg(`Payment of ₹${Number(req.amount).toLocaleString('en-IN')} for ${req.customerName} verified & approved!`);
       setTimeout(() => setActionSuccessMsg(null), 4000);
     } catch (err) {
@@ -306,14 +199,12 @@ export const Payments = () => {
       return;
     }
     setActionInProgress(req.id);
-    const allReqs = JSON.parse(localStorage.getItem('paymentRequests') || '[]');
-    const updatedReqs = allReqs.map((r: any) => 
-      r.id === req.id ? { ...r, status: 'REJECTED', rejectedAt: new Date().toISOString() } : r
-    );
-    localStorage.setItem('paymentRequests', JSON.stringify(updatedReqs));
-    window.dispatchEvent(new Event('storage'));
-    loadData();
-    setActionInProgress(null);
+    try {
+      rejectPaymentRequestAction(req.id);
+      loadData();
+    } finally {
+      setActionInProgress(null);
+    }
   };
 
   // Open Disbursal Modal for Withdrawal Request
@@ -644,7 +535,7 @@ export const Payments = () => {
                   </thead>
                   <tbody className="divide-y divide-neutral-100">
                     {filteredRequests.map((req) => {
-                      const isPending = req.status === 'PENDING_VERIFICATION';
+                      const isPending = isPendingPayment(req.status);
                       const isApproved = req.status === 'APPROVED';
                       const isRejected = req.status === 'REJECTED';
 

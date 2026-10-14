@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Calendar, Eye, ShieldCheck, Award } from 'lucide-react';
+import { Calendar, Eye, ShieldCheck, Award, ArrowLeft } from 'lucide-react';
 import { formatCurrency } from '../../utils/format';
 import { calculateFixedPlanSchedule } from '../../utils/chitCalculations';
 
@@ -57,7 +57,19 @@ export const FixedPlanSchedule = () => {
   });
 
   const [selectedPlan, setSelectedPlan] = useState<string>('all');
+  const [mobileSelectedPlan, setMobileSelectedPlan] = useState<string | null>(null);
   const [showPosterModal, setShowPosterModal] = useState(false);
+
+  useEffect(() => {
+    if (mobileSelectedPlan) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [mobileSelectedPlan]);
 
   useEffect(() => {
     const handleStorageChange = () => {
@@ -86,10 +98,99 @@ export const FixedPlanSchedule = () => {
     ? planDetails 
     : planDetails.filter(p => p.id === selectedPlan);
 
+  const activeMobilePlan = planDetails.find(p => p.id === mobileSelectedPlan) || planDetails[0];
+
   const months = Array.from({ length: 20 }, (_, i) => i + 1);
 
   return (
     <div className="space-y-6">
+      {/* Mobile Full Screen Schedule View (Only appears after user selects a scheme on mobile) */}
+      {mobileSelectedPlan && activeMobilePlan && (
+        <div className="fixed inset-0 z-50 bg-white flex flex-col h-[100dvh] w-screen overflow-hidden md:hidden animate-in fade-in duration-200">
+          {/* Top Header */}
+          <div className="bg-emerald-950 text-white px-4 py-3.5 flex items-center justify-between shrink-0 shadow-md">
+            <div className="overflow-hidden">
+              <h3 className="font-extrabold text-sm tracking-wide text-white truncate">
+                {activeMobilePlan.name} FIXED CHIT
+              </h3>
+              <p className="text-[10px] text-emerald-200 truncate">
+                20 Months • Fixed Installments
+              </p>
+            </div>
+            <span className="text-[10px] bg-emerald-900 text-emerald-200 px-2.5 py-1 rounded-full font-bold shrink-0">
+              20 Members
+            </span>
+          </div>
+
+          {/* Quick Metrics Bar */}
+          <div className="bg-neutral-50 border-b border-neutral-200 px-4 py-2 flex items-center justify-between text-xs shrink-0">
+            <div>
+              <span className="text-neutral-500 text-[10px] uppercase font-bold block">Monthly Due</span>
+              <span className="font-extrabold text-neutral-800">{activeMobilePlan.dueStr}</span>
+            </div>
+            <div className="text-center">
+              <span className="text-neutral-500 text-[10px] uppercase font-bold block">Chit Value</span>
+              <span className="font-extrabold text-emerald-900">{activeMobilePlan.name}</span>
+            </div>
+            <div className="text-right">
+              <span className="text-neutral-500 text-[10px] uppercase font-bold block">Post-Draw Due</span>
+              <span className="font-extrabold text-amber-700">{formatCurrency(activeMobilePlan.calc.postDrawTotalDue)}/mo</span>
+            </div>
+          </div>
+
+          {/* Full Screen Scrollable Schedule Table */}
+          <div className="flex-1 overflow-auto p-2 bg-neutral-100">
+            <div className="bg-white rounded-xl shadow-xs border border-neutral-200 overflow-hidden">
+              <table className="w-full text-center text-xs font-sans divide-y divide-neutral-200">
+                <thead className="sticky top-0 z-10 shadow-xs">
+                  <tr className="text-white font-black text-xs">
+                    <th rowSpan={2} className="bg-neutral-900 px-2 py-2.5 border-r border-neutral-800 w-12">
+                      MONTH
+                    </th>
+                    <th colSpan={2} className={`${activeMobilePlan.styling.th} px-3 py-2 text-center`}>
+                      {activeMobilePlan.name} SCHEDULE (20M)
+                    </th>
+                  </tr>
+                  <tr className="text-[10px] font-bold text-white uppercase tracking-wider">
+                    <th className={`${activeMobilePlan.styling.subDue} px-3 py-1.5 border-r border-white/20`}>MONTHLY DUE</th>
+                    <th className={`${activeMobilePlan.styling.subPay} px-3 py-1.5 font-black`}>PRIZE PAYOUT</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-200 font-semibold text-xs bg-white">
+                  {months.map((m) => {
+                    const row = activeMobilePlan.calc.schedule[m - 1];
+                    return (
+                      <tr key={m} className="hover:bg-emerald-50/40 transition-colors">
+                        <td className="bg-neutral-900 text-white font-bold py-2.5 px-2 border-r border-neutral-800">
+                          {m}
+                        </td>
+                        <td className={`py-2.5 px-3 ${activeMobilePlan.styling.cellBg} border-r border-neutral-100 font-bold`}>
+                          {row ? formatCurrency(row.due) : '-'}
+                        </td>
+                        <td className={`py-2.5 px-3 ${activeMobilePlan.styling.cellBg} ${activeMobilePlan.styling.cellPay} font-black`}>
+                          {row ? formatCurrency(row.payout) : '-'}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Bottom Bar with Back to Scheme Options Button */}
+          <div className="p-3 bg-white border-t border-neutral-200 shrink-0">
+            <button
+              onClick={() => setMobileSelectedPlan(null)}
+              className="w-full py-2.5 bg-emerald-950 hover:bg-emerald-900 active:scale-98 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-2 shadow-xs transition-all"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Back to Scheme Options</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Plan Category Quick Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {planDetails.map((p) => {
@@ -97,7 +198,10 @@ export const FixedPlanSchedule = () => {
           return (
             <button
               key={p.id}
-              onClick={() => setSelectedPlan(selectedPlan === p.id ? 'all' : p.id)}
+              onClick={() => {
+                setSelectedPlan(p.id);
+                setMobileSelectedPlan(p.id);
+              }}
               className={`p-4 rounded-xl border-2 text-left transition-all ${
                 isSelected ? 'ring-2 ring-primary-600 shadow-md scale-[1.02]' : 'hover:shadow'
               } ${p.styling.border} ${p.styling.bg} ${p.styling.text}`}
@@ -110,15 +214,28 @@ export const FixedPlanSchedule = () => {
               </div>
               <h4 className="text-lg font-black">{p.name}</h4>
               <p className="text-xs font-semibold opacity-80 mt-1">Due: {p.dueStr}</p>
+
+              {/* Mobile CTA prompt */}
+              <div className="md:hidden mt-2 pt-2 border-t border-emerald-200/60 flex items-center justify-between text-[11px] font-bold text-emerald-900">
+                <span>View Full Table</span>
+                <span>→</span>
+              </div>
             </button>
           );
         })}
       </div>
 
-      {/* Filter Tabs & Poster Action */}
-      <div className="flex flex-col sm:flex-row gap-2 sm:items-center justify-between bg-white p-2 rounded-xl border border-neutral-200">
-        <div className="flex flex-wrap gap-2 items-center">
-          <span className="text-xs font-bold text-neutral-500 px-3">Filter Column:</span>
+      {/* Mobile Hint Banner (Shown only on mobile when no scheme is in full-screen) */}
+      <div className="md:hidden bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl p-3.5 flex items-center justify-between text-xs font-semibold text-emerald-900 shadow-xs">
+        <span>Tap any scheme above to view the 20-month fixed schedule table in full screen.</span>
+      </div>
+
+      {/* Desktop Filter Tabs & Table (Hidden on Mobile, Visible on Desktop) */}
+      <div className="hidden md:block space-y-6">
+        {/* Filter Tabs & Poster Action */}
+        <div className="flex flex-col sm:flex-row gap-2 sm:items-center justify-between bg-white p-2 rounded-xl border border-neutral-200">
+          <div className="flex flex-wrap gap-2 items-center">
+            <span className="text-xs font-bold text-neutral-500 px-3">Filter Column:</span>
           <button
             onClick={() => setSelectedPlan('all')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
@@ -217,6 +334,7 @@ export const FixedPlanSchedule = () => {
           </table>
         </div>
       </div>
+    </div>
 
       {/* Post-Draw Installment Calculation Card */}
       <div className="bg-amber-50/70 border border-amber-200 rounded-2xl p-6 shadow-sm">

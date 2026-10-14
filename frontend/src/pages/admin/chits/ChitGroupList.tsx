@@ -352,7 +352,9 @@ export const ChitGroupList = () => {
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-right font-black text-slate-800">{formatCurrency(g.value)}</td>
+                    <td className="px-6 py-4 text-right">
+                      <div className="font-black text-slate-800 text-sm">{formatCurrency(g.value)}</div>
+                    </td>
                     <td className="px-6 py-4 text-center text-slate-600 font-medium">{g.duration} Months</td>
                     <td className="px-6 py-4 text-center">
                       <div className="flex flex-col items-center">

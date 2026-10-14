@@ -1,20 +1,23 @@
 import { useState, useEffect } from 'react';
-import { Layers, CreditCard, TrendingUp, Bell, History, Calendar, ArrowRight, Copy, Table, Gavel, Award, Building2, Wallet, CheckCircle2, Upload, Printer, X, Search, FileText } from 'lucide-react';
+import { Layers, CreditCard, TrendingUp, Bell, History, Calendar, ArrowRight, Copy, Table, Gavel, Award, Building2, Wallet, CheckCircle2, Upload, Printer, X, Search, FileText, Landmark, QrCode, Check, Lock } from 'lucide-react';
 import { formatCurrency, formatDate } from '../../utils/format';
 import { printCashReceipt } from '../../utils/receiptPrinter';
 import { useAuth } from '../../store/AuthContext';
 import { fetchClient } from '../../api/client';
 import { FixedPlanSchedule } from '../../components/customer/FixedPlanSchedule';
 import { AuctionPlanSchedule } from '../../components/customer/AuctionPlanSchedule';
+import { RegularPlanSchedule } from '../../components/customer/RegularPlanSchedule';
+import { resolveBankForPayment, generateUpiQrBadge, getStoredBankAccounts, type BankAccount } from '../../utils/bankAccountsData';
 
 export const CustomerDashboard = () => {
   const { user, logout } = useAuth();
-  const [activeTab, setActiveTab] = useState<'myChits' | 'fixedPlanChart' | 'auctionPlanChart'>('myChits');
+  const [activeTab, setActiveTab] = useState<'myChits' | 'regularPlanChart' | 'fixedPlanChart' | 'auctionPlanChart'>('myChits');
   const [activeChits, setActiveChits] = useState(0);
   const [totalInvested, setTotalInvested] = useState(0);
   const [myChits, setMyChits] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [copied, setCopied] = useState(false);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   // Payment states
   const [paymentModalChit, setPaymentModalChit] = useState<any | null>(null);
@@ -26,6 +29,9 @@ export const CustomerDashboard = () => {
   const [paySubmitting, setPaySubmitting] = useState(false);
   const [paySuccessMsg, setPaySuccessMsg] = useState('');
   const [pendingRequests, setPendingRequests] = useState<any[]>([]);
+
+  // Company Banks Modal / QR Preview
+  const [enlargedQrBank, setEnlargedQrBank] = useState<BankAccount | null>(null);
 
   // Withdrawal States
   const [withdrawModalChit, setWithdrawModalChit] = useState<any | null>(null);
@@ -209,30 +215,38 @@ export const CustomerDashboard = () => {
 
   const handleSubmitPayment = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!payRefNo.trim()) {
+    if (payMode !== 'Cash' && !payRefNo.trim()) {
       alert('Please enter your Transaction / UTR / Reference ID for verification.');
       return;
     }
-    setPaySubmitting(true);
+    const existingReqs = JSON.parse(localStorage.getItem('paymentRequests') || '[]');
+    const userPhone = user?.phone || user?.mobile || (user as any)?.phone || '';
+    const activeCompanyBanks = getStoredBankAccounts().filter(b => b.status === 'ACTIVE');
+    const resolvedBank = resolveBankForPayment(user?.id, paymentModalChit?.groupId, paymentModalChit?.groupName).bank || activeCompanyBanks[0];
+    const generatedCashRef = `CASH-${Date.now().toString().slice(-6)}`;
+    
     const newReq = {
       id: `PAY-${Date.now().toString().slice(-6)}`,
       customerId: user?.id || 'CUST',
       customerName: user?.name || 'Customer',
-      mobile: user?.phone || '',
+      mobile: userPhone,
       groupId: paymentModalChit?.groupId,
       groupName: paymentModalChit?.groupName || paymentModalChit?.groupId,
       ticketNumber: paymentModalChit?.ticketNumber || '',
       amount: Number(payAmount),
       paymentMode: payMode,
-      referenceNo: payRefNo.trim(),
+      referenceNo: payMode === 'Cash' ? (payRefNo.trim() || generatedCashRef) : payRefNo.trim(),
+      bankAccountId: resolvedBank?.id,
+      bankName: resolvedBank?.bankName,
       paymentScreenshot: payScreenshot || undefined,
       screenshotUrl: payScreenshot || undefined,
       submittedAt: new Date().toISOString(),
       status: 'PENDING_VERIFICATION',
-      remarks: `Paid via ${payMode}`
+      remarks: payMode === 'Cash' 
+        ? `Direct Cash payment submission for ₹${Number(payAmount).toLocaleString('en-IN')}`
+        : `Paid via ${payMode} to ${resolvedBank?.bankName || 'Company Bank'}`
     };
 
-    const existingReqs = JSON.parse(localStorage.getItem('paymentRequests') || '[]');
     const updatedReqs = [newReq, ...existingReqs];
     localStorage.setItem('paymentRequests', JSON.stringify(updatedReqs));
     window.dispatchEvent(new Event('storage'));
@@ -403,6 +417,20 @@ export const CustomerDashboard = () => {
               My Portfolio & Chits
             </button>
             <button
+              onClick={() => setActiveTab('regularPlanChart')}
+              className={`pb-3 px-4 font-bold text-sm border-b-2 flex items-center whitespace-nowrap transition-colors ${
+                activeTab === 'regularPlanChart'
+                  ? 'border-amber-600 text-amber-900'
+                  : 'border-transparent text-neutral-500 hover:text-neutral-700'
+              }`}
+            >
+              <Layers className="w-4 h-4 mr-2 text-amber-600" />
+              Regular Plan Schedule (20M)
+              <span className="ml-2 px-2 py-0.5 text-[10px] bg-amber-100 text-amber-900 rounded-full uppercase tracking-wider font-extrabold">
+                Brochure Scheme
+              </span>
+            </button>
+            <button
               onClick={() => setActiveTab('fixedPlanChart')}
               className={`pb-3 px-4 font-bold text-sm border-b-2 flex items-center whitespace-nowrap transition-colors ${
                 activeTab === 'fixedPlanChart'
@@ -432,53 +460,14 @@ export const CustomerDashboard = () => {
             </button>
           </div>
 
-          {activeTab === 'fixedPlanChart' ? (
+          {activeTab === 'regularPlanChart' ? (
+            <RegularPlanSchedule />
+          ) : activeTab === 'fixedPlanChart' ? (
             <FixedPlanSchedule />
           ) : activeTab === 'auctionPlanChart' ? (
             <AuctionPlanSchedule />
           ) : (
             <>
-              {/* Quick Prompts to Schemes */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Fixed Plan Card */}
-                <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-primary-50 border border-emerald-200 rounded-xl p-4 flex items-center justify-between gap-3 shadow-sm">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-emerald-700 text-white flex items-center justify-center font-bold shrink-0">
-                      <Table className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-bold text-emerald-950">Fixed Chit Plans (ரூ. 1L - 10L)</h4>
-                      <p className="text-xs text-emerald-700">Fixed monthly dues & guaranteed prize schedule.</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setActiveTab('fixedPlanChart')}
-                    className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 shadow-sm shrink-0"
-                  >
-                    View <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-
-                {/* Auction Plan Card */}
-                <div className="bg-gradient-to-r from-purple-50 via-indigo-50 to-purple-50 border border-purple-200 rounded-xl p-4 flex items-center justify-between gap-3 shadow-sm">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-purple-800 text-white flex items-center justify-center font-bold shrink-0">
-                      <Gavel className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-bold text-purple-950">Auction Chit Plans (ரூ. 1L - 10L)</h4>
-                      <p className="text-xs text-purple-700">Reverse bidding, max 30% discount & monthly dividends.</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setActiveTab('auctionPlanChart')}
-                    className="bg-purple-800 hover:bg-purple-900 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 shadow-sm shrink-0"
-                  >
-                    View <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div className="card border-l-4 border-l-primary-900 p-6">
                   <div className="flex justify-between items-start">
@@ -553,6 +542,36 @@ export const CustomerDashboard = () => {
             
             {/* My Chit Groups */}
             <div className="lg:col-span-2 space-y-4">
+              {/* Live Pending Payment Verifications Alert Banner */}
+              {pendingRequests.filter(r => r.status === 'PENDING_VERIFICATION').length > 0 && (
+                <div className="bg-amber-50/90 border border-amber-300 rounded-2xl p-4 shadow-2xs space-y-2.5 animate-in fade-in duration-150">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase tracking-wider text-amber-950 flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></span>
+                      Pending Payment Verifications ({pendingRequests.filter(r => r.status === 'PENDING_VERIFICATION').length})
+                    </span>
+                    <span className="text-[11px] font-semibold text-amber-800">Awaiting Admin Verification</span>
+                  </div>
+                  <div className="divide-y divide-amber-200/60 text-xs">
+                    {pendingRequests.filter(r => r.status === 'PENDING_VERIFICATION').map((req, idx) => (
+                      <div key={idx} className="py-2 flex items-center justify-between gap-3">
+                        <div>
+                          <p className="font-bold text-neutral-900">
+                            {formatCurrency(req.amount)} via {req.paymentMode} to <span className="text-primary-900">{req.bankName || 'Company Bank'}</span>
+                          </p>
+                          <p className="text-[11px] text-neutral-500 font-mono mt-0.5">
+                            Ref / UTR: {req.referenceNo} · Group: {req.groupName || req.groupId}
+                          </p>
+                        </div>
+                        <span className="px-2.5 py-1 bg-amber-200/70 text-amber-950 text-[10px] font-black uppercase rounded-full shrink-0">
+                          In Verification
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <h3 className="text-lg font-semibold text-primary-900 flex items-center">
                 <Layers className="w-5 h-5 mr-2 text-primary-600" />
                 My Active Chit Groups
@@ -701,6 +720,106 @@ export const CustomerDashboard = () => {
 
             {/* Transaction History Sidebar */}
             <div className="space-y-4">
+              {/* Official Payment Accounts (UPI & Net Banking) */}
+              {(() => {
+                const defaultAssigned = resolveBankForPayment(user?.id, myChits[0]?.groupId, myChits[0]?.groupName);
+                const b = defaultAssigned.bank;
+
+                return (
+                  <div className="card p-5 bg-gradient-to-br from-amber-500/10 via-white to-primary-50/40 border border-amber-200/80 shadow-xs space-y-3.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold uppercase tracking-wider text-amber-950 flex items-center gap-1.5">
+                        <Landmark className="w-4 h-4 text-amber-800" /> Payment Bank & UPI
+                      </span>
+                      <span className="text-[10px] bg-amber-200/80 text-amber-950 font-bold px-2 py-0.5 rounded-full">
+                        {defaultAssigned.scope === 'CUSTOMER' ? 'Custom Assigned' : defaultAssigned.scope === 'GROUP' ? 'Group Assigned' : 'Default Master'}
+                      </span>
+                    </div>
+
+                    <div>
+                      <h4 className="font-extrabold text-base text-neutral-900">{b.bankName}</h4>
+                      <p className="text-xs text-neutral-500">{b.accountHolderName}</p>
+                    </div>
+
+                    <div className="bg-white p-3 rounded-xl border border-neutral-200/80 space-y-2 text-xs font-mono shadow-2xs">
+                      <div className="flex justify-between items-center text-neutral-800">
+                        <span className="text-[10px] text-neutral-400 font-sans uppercase font-bold">A/C:</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold tracking-wider">{b.accountNumber}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(b.accountNumber);
+                              setCopiedKey('sidebar-acc');
+                              setTimeout(() => setCopiedKey(null), 2000);
+                            }}
+                            className="text-neutral-400 hover:text-neutral-700 p-0.5 cursor-pointer"
+                            title="Copy Account Number"
+                          >
+                            {copiedKey === 'sidebar-acc' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                      </div>
+                      <div className="flex justify-between items-center text-neutral-800">
+                        <span className="text-[10px] text-neutral-400 font-sans uppercase font-bold">IFSC:</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold">{b.ifscCode}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(b.ifscCode);
+                              setCopiedKey('sidebar-ifsc');
+                              setTimeout(() => setCopiedKey(null), 2000);
+                            }}
+                            className="text-neutral-400 hover:text-neutral-700 p-0.5 cursor-pointer"
+                            title="Copy IFSC Code"
+                          >
+                            {copiedKey === 'sidebar-ifsc' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                      </div>
+                      <div className="flex justify-between items-center text-amber-950 pt-1 border-t border-neutral-100">
+                        <span className="text-[10px] text-amber-800 font-sans uppercase font-bold">UPI ID:</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold truncate max-w-[130px]">{b.upiId}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(b.upiId);
+                              setCopiedKey('sidebar-upi');
+                              setTimeout(() => setCopiedKey(null), 2000);
+                            }}
+                            className="text-amber-800 hover:text-amber-950 p-0.5 cursor-pointer"
+                            title="Copy UPI ID"
+                          >
+                            {copiedKey === 'sidebar-upi' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                      <button
+                        onClick={() => setEnlargedQrBank(b)}
+                        className="py-2 bg-white hover:bg-neutral-50 text-neutral-700 border border-neutral-300 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <QrCode className="w-3.5 h-3.5 text-amber-700" /> View QR
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (myChits.length > 0) {
+                            handlePayNow(myChits[0]);
+                          }
+                        }}
+                        className="py-2 bg-primary-900 hover:bg-primary-800 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        Pay Due <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
+
               <h3 className="text-lg font-semibold text-primary-900 flex items-center">
                 <History className="w-5 h-5 mr-2 text-primary-600" />
                 Recent Transactions
@@ -774,9 +893,9 @@ export const CustomerDashboard = () => {
 
       {/* Customer Payment Request Submission Modal */}
       {paymentModalChit && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl shadow-2xl border border-neutral-200 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-150">
-            <div className="px-6 py-4 bg-primary-900 text-white flex justify-between items-center">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl border border-neutral-200 w-full max-w-lg max-h-[92vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
+            <div className="px-6 py-4 bg-primary-900 text-white flex justify-between items-center shrink-0">
               <div>
                 <h3 className="font-bold text-lg">Submit Chit Payment</h3>
                 <p className="text-xs text-primary-200 mt-0.5">
@@ -800,7 +919,7 @@ export const CustomerDashboard = () => {
                 <p className="text-sm text-neutral-600">{paySuccessMsg}</p>
               </div>
             ) : (
-              <form onSubmit={handleSubmitPayment} className="p-6 space-y-4">
+              <form onSubmit={handleSubmitPayment} className="p-5 sm:p-6 space-y-4 flex-1 overflow-y-auto min-h-0">
                 <div className="p-4 bg-primary-50/60 rounded-xl border border-primary-100 flex items-center justify-between">
                   <div>
                     <p className="text-xs font-semibold text-primary-700 uppercase tracking-wider">Installment Due Amount</p>
@@ -850,22 +969,174 @@ export const CustomerDashboard = () => {
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-neutral-600 mb-1.5">
-                    Transaction / Reference ID (UTR / Receipt No.) <span className="text-danger">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. UTR1289471928 or Cash receipt slip"
-                    value={payRefNo}
-                    onChange={(e) => setPayRefNo(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-white border border-neutral-300 rounded-lg text-sm font-mono text-neutral-900 focus:border-primary-600 focus:outline-none transition-colors"
-                  />
-                  <p className="text-[11px] text-neutral-500 mt-1">
-                    Enter the UPI transaction UTR or bank reference ID so admin can verify and update receipt.
-                  </p>
-                </div>
+                {/* Dynamically resolved assigned bank account for this customer and chit group - LOCKED to prevent modification by customer */}
+                {(() => {
+                  const activeCompanyBanks = getStoredBankAccounts().filter(b => b.status === 'ACTIVE');
+                  const assignedBankResult = resolveBankForPayment(user?.id, paymentModalChit?.groupId, paymentModalChit?.groupName);
+                  const b = assignedBankResult.bank || activeCompanyBanks[0];
+
+                  if (!b) return null;
+
+                  return (
+                    <div className="space-y-3">
+                      {/* Fixed & Read-only Designated Bank Details (Cannot be changed by customer) */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="text-[11px] font-bold uppercase tracking-wider text-neutral-600 flex items-center gap-1.5">
+                            <Landmark className="w-3.5 h-3.5 text-primary-800" />
+                            <span>Receiving Company Bank Account</span>
+                          </label>
+                          <span className="text-[10px] text-amber-900 font-bold bg-amber-100/90 border border-amber-300/60 px-2 py-0.5 rounded-full flex items-center gap-1">
+                            <Lock className="w-2.5 h-2.5 text-amber-800" /> Fixed · Group Designated
+                          </span>
+                        </div>
+                        <div className="w-full px-3.5 py-2.5 bg-neutral-50/90 border border-neutral-200 rounded-xl flex items-center justify-between">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="w-8 h-8 rounded-lg bg-primary-900 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
+                              {b.bankName.slice(0, 2).toUpperCase()}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-xs font-bold text-neutral-900 truncate">
+                                {b.bankName} <span className="font-mono text-neutral-500 font-medium">(A/C •••• {b.accountNumber.slice(-4)})</span>
+                              </p>
+                              <p className="text-[10px] text-neutral-500 truncate">
+                                {b.accountHolderName} · {b.accountType} A/C
+                              </p>
+                            </div>
+                          </div>
+                          <span className="text-[10px] font-medium text-neutral-400 bg-neutral-200/60 px-2 py-0.5 rounded-md shrink-0 ml-2">
+                            Locked
+                          </span>
+                        </div>
+                      </div>
+
+                      {payMode === 'UPI' && (
+                        <div className="bg-amber-50/80 border border-amber-200/80 rounded-xl p-3.5 space-y-3">
+                          <div className="flex items-center justify-between pb-2 border-b border-amber-200/60">
+                            <span className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                              <QrCode className="w-4 h-4 text-amber-700" /> Scan UPI QR or Pay to VPA
+                            </span>
+                            <span className="text-[10px] bg-amber-200/70 text-amber-900 font-bold px-2 py-0.5 rounded-full">
+                              {b.bankName}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <div className="w-20 h-20 bg-white p-1 rounded-lg border border-amber-200 shrink-0 shadow-2xs">
+                              <img 
+                                src={b.qrCodeUrl || generateUpiQrBadge(b.upiId, b.accountHolderName, Number(payAmount) || undefined)} 
+                                alt="UPI QR" 
+                                className="w-full h-full object-contain"
+                              />
+                            </div>
+                            <div className="overflow-hidden flex-1 space-y-1">
+                              <p className="text-[11px] font-bold text-neutral-800">{b.accountHolderName}</p>
+                              <div className="flex items-center justify-between bg-white px-2 py-1 rounded-md border border-amber-200">
+                                <span className="font-mono text-xs font-bold text-amber-950 truncate">{b.upiId}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(b.upiId);
+                                    setCopiedKey('modal-upi');
+                                    setTimeout(() => setCopiedKey(null), 2000);
+                                  }}
+                                  className="text-amber-800 hover:text-amber-950 p-1 rounded transition-colors shrink-0"
+                                  title="Copy UPI ID"
+                                >
+                                  {copiedKey === 'modal-upi' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                                </button>
+                              </div>
+                              <p className="text-[10px] text-amber-800">
+                                Pay via GPay, PhonePe, Paytm, or BHIM.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {payMode === 'Bank Transfer' && (
+                        <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2.5">
+                          <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+                            <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                              <Landmark className="w-4 h-4 text-primary-700" /> Designated Bank Transfer Details
+                            </span>
+                            <span className="text-[10px] bg-slate-200 text-slate-800 font-bold px-2 py-0.5 rounded-full">
+                              {b.bankName}
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2 text-xs font-mono">
+                            <div className="p-2 bg-white rounded-lg border border-slate-200">
+                              <span className="text-[10px] text-neutral-400 font-sans block uppercase font-bold">A/C Number</span>
+                              <div className="flex items-center justify-between mt-0.5">
+                                <span className="font-bold text-neutral-900">{b.accountNumber}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(b.accountNumber);
+                                    setCopiedKey('modal-acc');
+                                    setTimeout(() => setCopiedKey(null), 2000);
+                                  }}
+                                  className="text-neutral-500 hover:text-neutral-900"
+                                >
+                                  {copiedKey === 'modal-acc' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="p-2 bg-white rounded-lg border border-slate-200">
+                              <span className="text-[10px] text-neutral-400 font-sans block uppercase font-bold">IFSC Code</span>
+                              <div className="flex items-center justify-between mt-0.5">
+                                <span className="font-bold text-neutral-900">{b.ifscCode}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(b.ifscCode);
+                                    setCopiedKey('modal-ifsc');
+                                    setTimeout(() => setCopiedKey(null), 2000);
+                                  }}
+                                  className="text-neutral-500 hover:text-neutral-900"
+                                >
+                                  {copiedKey === 'modal-ifsc' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="text-[11px] text-neutral-600 flex justify-between items-center px-1">
+                            <span>Holder: <strong>{b.accountHolderName}</strong></span>
+                            <span>{b.branch}</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {payMode === 'Cash' && (
+                        <div className="bg-amber-50/60 border border-amber-200/60 rounded-xl p-3 text-xs text-amber-900">
+                          Visit any of our registered branches or pay directly to authorized collections executives. Always collect a signed cash receipt with a valid receipt number.
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {payMode !== 'Cash' && (
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-neutral-600 mb-1.5">
+                      Transaction / Reference ID (UTR / Receipt No.) <span className="text-danger">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. UTR1289471928 or Bank reference number"
+                      value={payRefNo}
+                      onChange={(e) => setPayRefNo(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-white border border-neutral-300 rounded-lg text-sm font-mono text-neutral-900 focus:border-primary-600 focus:outline-none transition-colors"
+                    />
+                    <p className="text-[11px] text-neutral-500 mt-1">
+                      Enter the UPI transaction UTR or bank reference ID so admin can verify and update receipt.
+                    </p>
+                  </div>
+                )}
 
                 {/* Upload Payment Screenshot */}
                 <div>
@@ -950,9 +1221,9 @@ export const CustomerDashboard = () => {
 
       {/* Customer Prize Withdrawal / Claim Modal */}
       {withdrawModalChit && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl shadow-2xl border border-neutral-200 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-150">
-            <div className="px-6 py-4 bg-amber-700 text-white flex justify-between items-center">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl border border-neutral-200 w-full max-w-lg max-h-[92vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
+            <div className="px-6 py-4 bg-amber-700 text-white flex justify-between items-center shrink-0">
               <div>
                 <h3 className="font-bold text-lg flex items-center gap-2">
                   <Award className="w-5 h-5 text-amber-200" />
@@ -979,7 +1250,7 @@ export const CustomerDashboard = () => {
                 <p className="text-sm text-neutral-600">{withdrawSuccessMsg}</p>
               </div>
             ) : (
-              <form onSubmit={handleSubmitWithdrawal} className="p-6 space-y-4">
+              <form onSubmit={handleSubmitWithdrawal} className="p-5 sm:p-6 space-y-4 flex-1 overflow-y-auto min-h-0">
                 {/* Prize Breakdown Banner */}
                 <div className="p-4 bg-amber-50/70 rounded-xl border border-amber-200">
                   <div className="flex justify-between items-center pb-2 border-b border-amber-200/60 text-xs">
@@ -1269,6 +1540,66 @@ export const CustomerDashboard = () => {
               >
                 Close
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ENLARGED QR MODAL */}
+      {enlargedQrBank && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl border border-neutral-200 w-full max-w-sm max-h-[90vh] overflow-y-auto p-6 text-center space-y-4">
+            <div className="flex justify-between items-center pb-2 border-b border-neutral-100">
+              <h3 className="font-extrabold text-neutral-900 text-base flex items-center gap-2">
+                <QrCode className="w-5 h-5 text-amber-700" /> UPI Scan & Pay QR
+              </h3>
+              <button 
+                onClick={() => setEnlargedQrBank(null)} 
+                className="text-neutral-400 hover:text-neutral-700 p-1 rounded-lg cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="bg-neutral-50 p-4 rounded-xl border border-neutral-200 inline-block shadow-inner max-w-full">
+              <img 
+                src={enlargedQrBank.qrCodeUrl || generateUpiQrBadge(enlargedQrBank.upiId, enlargedQrBank.accountHolderName)} 
+                alt="UPI QR Code" 
+                className="w-48 h-48 mx-auto object-contain rounded-lg"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <p className="font-bold text-neutral-900 text-sm">{enlargedQrBank.accountHolderName}</p>
+              <p className="font-mono text-xs text-amber-900 font-semibold bg-amber-50 py-1 px-3 rounded-full inline-block border border-amber-200">
+                {enlargedQrBank.upiId}
+              </p>
+              <p className="text-[11px] text-neutral-500 pt-1">{enlargedQrBank.bankName} · {enlargedQrBank.branch}</p>
+            </div>
+
+            <div className="space-y-2 pt-2">
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(enlargedQrBank.upiId);
+                  setCopiedKey('enlarged-upi');
+                  setTimeout(() => setCopiedKey(null), 2000);
+                }}
+                className="w-full py-2 bg-primary-900 text-white rounded-xl text-xs font-bold hover:bg-primary-800 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                {copiedKey === 'enlarged-upi' ? <Check className="w-4 h-4 text-emerald-300" /> : <Copy className="w-4 h-4" />}
+                Copy UPI ID
+              </button>
+              {myChits.length > 0 && (
+                <button
+                  onClick={() => {
+                    setEnlargedQrBank(null);
+                    handlePayNow(myChits[0]);
+                  }}
+                  className="w-full py-2 bg-accent hover:bg-accent-light text-primary-950 rounded-xl text-xs font-black transition-colors flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+                >
+                  Pay Installment Now
+                </button>
+              )}
             </div>
           </div>
         </div>

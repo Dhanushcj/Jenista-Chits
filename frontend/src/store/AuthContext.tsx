@@ -8,6 +8,7 @@ interface AuthUser {
   role: UserRole;
   email?: string;
   phone?: string;
+  mobile?: string;
   permissions: string[];
 }
 

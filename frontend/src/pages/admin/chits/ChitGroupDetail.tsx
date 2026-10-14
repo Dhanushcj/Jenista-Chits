@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Button } from '../../../components/common/Button';
 import { formatCurrency } from '../../../utils/format';
-import { Layers, Gavel, Calendar, Users, Target, AlertCircle } from 'lucide-react';
+import { Layers, Gavel, Calendar, Users, Target, AlertCircle, Landmark } from 'lucide-react';
+import { resolveBankForPayment } from '../../../utils/bankAccountsData';
 
 export const ChitGroupDetail = () => {
   const { id } = useParams();
@@ -59,7 +60,7 @@ export const ChitGroupDetail = () => {
   // Global data fetches for metrics and members tab
   const ledger = JSON.parse(localStorage.getItem('ledgerTransactions') || '[]');
   const customers = JSON.parse(localStorage.getItem('mockCustomers') || '[]');
-  
+
   const groupMembers: any[] = [];
   const targetGroupId = group.id || group.code;
 
@@ -97,11 +98,11 @@ export const ChitGroupDetail = () => {
         if (chit.groupId === targetGroupId || chit.groupName === group.name) {
           const custName = chit.customerName || cust.name || cust.fullName || 'Customer';
           const existingIdx = groupMembers.findIndex(m => m.ticketNumber === chit.ticketNumber || (m.customerId && m.customerId === cust.id));
-          const memberData = { 
-            ...chit, 
+          const memberData = {
+            ...chit,
             customerName: custName,
-            customerId: cust.id, 
-            customerImage: cust.photoPreview || `https://ui-avatars.com/api/?name=${encodeURIComponent(custName)}&background=6366f1&color=fff&size=150` 
+            customerId: cust.id,
+            customerImage: cust.photoPreview || `https://ui-avatars.com/api/?name=${encodeURIComponent(custName)}&background=6366f1&color=fff&size=150`
           };
           if (existingIdx === -1) {
             groupMembers.push(memberData);
@@ -116,10 +117,10 @@ export const ChitGroupDetail = () => {
   groupMembers.sort((a, b) => Number(a.ticketNumber) - Number(b.ticketNumber));
 
   const paidMembersCount = groupMembers.filter((m) => {
-    return ledger.some((t: any) => 
-      (t.type === 'CREDIT' || t.category === 'INSTALLMENT') && 
+    return ledger.some((t: any) =>
+      (t.type === 'CREDIT' || t.category === 'INSTALLMENT') &&
       ((t.reference?.includes(m.customerId) || t.reference?.includes(m.customerName) || t.description?.includes(m.customerName) || t.description?.includes(m.customerId) || t.customerName === m.customerName || t.customerId === m.customerId) &&
-      (t.reference?.includes(m.groupId) || t.description?.includes(m.groupId) || t.groupId === m.groupId))
+        (t.reference?.includes(m.groupId) || t.description?.includes(m.groupId) || t.groupId === m.groupId))
     );
   }).length;
 
@@ -141,16 +142,15 @@ export const ChitGroupDetail = () => {
           <div>
             <div className="flex items-center space-x-3 mb-1">
               <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{group.name}</h1>
-              <span className={`text-xs font-bold px-2 py-0.5 rounded uppercase tracking-wider shadow-sm ${
-                group.status === 'ACTIVE' ? 'bg-success text-white' : 'bg-accent text-primary-900'
-              }`}>{group.status || 'FORMATION'}</span>
+              <span className={`text-xs font-bold px-2 py-0.5 rounded uppercase tracking-wider shadow-sm ${group.status === 'ACTIVE' ? 'bg-success text-white' : 'bg-accent text-primary-900'
+                }`}>{group.status || 'FORMATION'}</span>
             </div>
             <p className="text-primary-200 font-medium">
               {group.id || group.code} • {isAuction ? 'Registered Auction Plan' : 'Fixed Collection Plan'}
             </p>
           </div>
         </div>
-        
+
         <div className="relative z-10 flex gap-3 w-full md:w-auto">
           <Button variant="secondary" className="bg-primary-800 text-white border-primary-700 hover:bg-primary-700 w-full md:w-auto">
             Manage Members
@@ -222,11 +222,10 @@ export const ChitGroupDetail = () => {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`px-6 py-4 text-sm font-medium whitespace-nowrap transition-colors border-b-2 outline-none ${
-                activeTab === tab.id 
-                  ? "border-primary-900 text-primary-900 bg-neutral-50" 
+              className={`px-6 py-4 text-sm font-medium whitespace-nowrap transition-colors border-b-2 outline-none ${activeTab === tab.id
+                  ? "border-primary-900 text-primary-900 bg-neutral-50"
                   : "border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300"
-              }`}
+                }`}
             >
               {tab.name}
             </button>
@@ -236,7 +235,7 @@ export const ChitGroupDetail = () => {
         <div className="p-6">
           {activeTab === 'overview' && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              
+
               <div>
                 <h3 className="text-lg font-bold text-primary-900 mb-4">
                   Current Cycle Status {currentMonth > 0 ? `(Month ${currentMonth})` : '(Not Started)'}
@@ -251,7 +250,7 @@ export const ChitGroupDetail = () => {
                       <p className="text-lg font-bold text-primary-900">{formatCurrency(totalExpected)}</p>
                     </div>
                   </div>
-                  
+
                   <div className="flex justify-between items-center p-4 bg-success-light rounded-lg border border-success border-opacity-20">
                     <div>
                       <p className="text-sm font-medium text-success">Collection Received</p>
@@ -305,11 +304,27 @@ export const ChitGroupDetail = () => {
                         {isAuction ? 'Auction' : 'Fixed'}
                       </span>
                     </div>
+                    {(() => {
+                      const bankInfo = resolveBankForPayment(undefined, group.id || group.code, group.name);
+                      return (
+                        <div className="flex justify-between items-center text-sm pt-2 border-t border-neutral-100">
+                          <span className="text-neutral-500 flex items-center gap-1.5">
+                            <Landmark className="w-3.5 h-3.5 text-primary-700" /> Assigned Bank
+                          </span>
+                          <div className="text-right">
+                            <span className="font-bold text-neutral-900 block text-xs">{bankInfo.bank.bankName}</span>
+                            <span className="font-mono text-[10px] text-neutral-500 block">UPI: {bankInfo.bank.upiId}</span>
+                            <Link to="/admin/banks" className="text-[11px] font-bold text-primary-700 hover:underline">
+                              Change Bank &rarr;
+                            </Link>
+                          </div>
+                        </div>
+                      );
+                    })()}
                     <div className="flex justify-between text-sm">
                       <span className="text-neutral-500">Status</span>
-                      <span className={`font-bold px-2 py-0.5 rounded text-xs uppercase ${
-                        group.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
-                      }`}>{group.status || 'FORMATION'}</span>
+                      <span className={`font-bold px-2 py-0.5 rounded text-xs uppercase ${group.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+                        }`}>{group.status || 'FORMATION'}</span>
                     </div>
                   </div>
                 </div>
@@ -317,7 +332,7 @@ export const ChitGroupDetail = () => {
 
             </div>
           )}
-          
+
           {activeTab === 'members' && (
             <div>
               <div className="flex justify-between items-center mb-6">
@@ -350,12 +365,12 @@ export const ChitGroupDetail = () => {
                       }
 
                       return groupMembers.map((m, idx) => {
-                        const hasPaid = ledger.some((t: any) => 
-                          (t.type === 'CREDIT' || t.category === 'INSTALLMENT') && 
+                        const hasPaid = ledger.some((t: any) =>
+                          (t.type === 'CREDIT' || t.category === 'INSTALLMENT') &&
                           ((t.reference?.includes(m.customerId) || t.reference?.includes(m.customerName) || t.description?.includes(m.customerName) || t.description?.includes(m.customerId) || t.customerName === m.customerName || t.customerId === m.customerId) &&
-                          (t.reference?.includes(m.groupId) || t.description?.includes(m.groupId) || t.groupId === m.groupId))
+                            (t.reference?.includes(m.groupId) || t.description?.includes(m.groupId) || t.groupId === m.groupId))
                         );
-                        
+
                         return (
                           <tr key={idx} className="hover:bg-neutral-50 transition-colors">
                             <td className="p-4 font-bold text-primary-900">#{m.ticketNumber}</td>

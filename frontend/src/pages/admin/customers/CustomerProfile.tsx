@@ -6,11 +6,17 @@ import {
   User, Phone, MapPin, Building, 
   Wallet, FileText, AlertCircle, CheckCircle2,
   Calendar, Mail, CreditCard, Activity, ArrowUpRight, ArrowDownRight, Clock, Layers, X, Users, BookOpen, Download, Award,
-  Eye, ExternalLink, Printer
+  Eye, ExternalLink, Printer, Landmark
 } from 'lucide-react';
 import { cn } from '../../../utils/cn';
 import { fetchClient } from '../../../api/client';
 import { printCashReceipt } from '../../../utils/receiptPrinter';
+import { 
+  getStoredBankAccounts, 
+  getStoredBankAssignments, 
+  assignBankToCustomer, 
+  resolveBankForPayment 
+} from '../../../utils/bankAccountsData';
 
 export const CustomerProfile = () => {
   const { id } = useParams();
@@ -33,6 +39,11 @@ export const CustomerProfile = () => {
   const [withdrawNotes, setWithdrawNotes] = useState('');
   const [disbursalSuccessMsg, setDisbursalSuccessMsg] = useState<string | null>(null);
   const [selectedProofModal, setSelectedProofModal] = useState<any | null>(null);
+
+  // Bank Customization States
+  const [isChangeBankModalOpen, setIsChangeBankModalOpen] = useState(false);
+  const [selectedBankToAssign, setSelectedBankToAssign] = useState('INHERIT');
+  const [bankUpdateMsg, setBankUpdateMsg] = useState<string | null>(null);
 
   // Helper to resolve chits from all local and group sources
   const resolveChitsForCustomer = (custTarget: any, targetId: string) => {
@@ -557,6 +568,74 @@ export const CustomerProfile = () => {
           </div>
         </div>
         
+        {/* Designated Receiving Bank Account for UPI/Bank Transfer */}
+        {(() => {
+          const firstGroupKey = customer?.chits?.[0]?.groupId || customer?.chits?.[0]?.groupName;
+          const resolvedBankResult = resolveBankForPayment(displayId, firstGroupKey);
+          const currentAssignments = getStoredBankAssignments();
+          const customAssignment = currentAssignments.customerAssignments[displayId];
+
+          return (
+            <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-5 space-y-3">
+              <div className="flex items-center justify-between pb-2 border-b border-neutral-100">
+                <h3 className="text-xs font-bold text-neutral-900 uppercase tracking-wider flex items-center gap-1.5">
+                  <Landmark className="w-4 h-4 text-primary-700" />
+                  Payment Bank Account
+                </h3>
+                <button
+                  onClick={() => {
+                    setSelectedBankToAssign(customAssignment || 'INHERIT');
+                    setIsChangeBankModalOpen(true);
+                  }}
+                  className="text-xs text-primary-700 hover:text-primary-900 font-bold hover:underline"
+                >
+                  Change
+                </button>
+              </div>
+
+              {bankUpdateMsg && (
+                <div className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg p-2 flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> {bankUpdateMsg}
+                </div>
+              )}
+
+              <div className="bg-amber-50/70 p-3.5 rounded-xl border border-amber-200/80 space-y-2">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <span className="font-extrabold text-sm text-neutral-900 block">{resolvedBankResult.bank.bankName}</span>
+                    <span className="text-[11px] text-neutral-500 font-medium">{resolvedBankResult.bank.accountHolderName}</span>
+                  </div>
+                  <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
+                    resolvedBankResult.scope === 'CUSTOMER' ? 'bg-primary-100 text-primary-900 border border-primary-200' : 'bg-neutral-100 text-neutral-600'
+                  }`}>
+                    {resolvedBankResult.scope === 'CUSTOMER' ? 'Custom Customer' : 'Group / Default'}
+                  </span>
+                </div>
+
+                <div className="text-xs font-mono space-y-1.5 pt-2 border-t border-amber-200/60">
+                  <div className="flex justify-between items-center text-neutral-700">
+                    <span className="text-[10px] text-neutral-400 font-sans uppercase font-bold">A/C:</span>
+                    <span className="font-bold text-neutral-900">{resolvedBankResult.bank.accountNumber}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-neutral-700">
+                    <span className="text-[10px] text-neutral-400 font-sans uppercase font-bold">IFSC:</span>
+                    <span className="font-bold text-neutral-900">{resolvedBankResult.bank.ifscCode}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-amber-950">
+                    <span className="text-[10px] text-amber-800 font-sans uppercase font-bold">UPI ID:</span>
+                    <span className="font-bold text-amber-950 truncate max-w-[170px]" title={resolvedBankResult.bank.upiId}>
+                      {resolvedBankResult.bank.upiId}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <p className="text-[11px] text-neutral-500">
+                Customer uses these bank & UPI details to make payments via UPI or Bank Transfer.
+              </p>
+            </div>
+          );
+        })()}
+
         {/* KYC Mini Card */}
         <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-5">
           <h3 className="text-sm font-bold text-neutral-900 mb-4 flex items-center justify-between">
@@ -1388,6 +1467,96 @@ export const CustomerProfile = () => {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+      {/* MODAL: CUSTOMIZE CUSTOMER ASSIGNED BANK */}
+      {isChangeBankModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl border border-neutral-200 w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="px-6 py-4 bg-primary-950 text-white flex justify-between items-center shrink-0">
+              <div>
+                <h3 className="font-bold text-base flex items-center gap-2">
+                  <Landmark className="w-4 h-4 text-accent" /> Customize Customer Bank Account
+                </h3>
+                <p className="text-xs text-primary-200 mt-0.5">Assign which company bank account this customer pays to.</p>
+              </div>
+              <button onClick={() => setIsChangeBankModalOpen(false)} className="text-white/70 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4 flex-1 overflow-y-auto min-h-0">
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-neutral-600 mb-2">
+                  Select Receiving Bank Account
+                </label>
+                <div className="space-y-2">
+                  <label className={`flex items-start p-3 rounded-xl border cursor-pointer transition-colors ${
+                    selectedBankToAssign === 'INHERIT' ? 'border-primary-600 bg-primary-50/50' : 'border-neutral-200 hover:bg-neutral-50'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="bankChoice"
+                      value="INHERIT"
+                      checked={selectedBankToAssign === 'INHERIT'}
+                      onChange={() => setSelectedBankToAssign('INHERIT')}
+                      className="mt-0.5 text-primary-600 mr-3"
+                    />
+                    <div>
+                      <span className="font-bold text-xs text-neutral-900 block">Use Chit Group / Default Account</span>
+                      <span className="text-[11px] text-neutral-500">Inherits the bank account assigned to customer's chit group</span>
+                    </div>
+                  </label>
+
+                  {getStoredBankAccounts().filter(b => b.status === 'ACTIVE').map(b => (
+                    <label key={b.id} className={`flex items-start p-3 rounded-xl border cursor-pointer transition-colors ${
+                      selectedBankToAssign === b.id ? 'border-primary-600 bg-primary-50/50' : 'border-neutral-200 hover:bg-neutral-50'
+                    }`}>
+                      <input
+                        type="radio"
+                        name="bankChoice"
+                        value={b.id}
+                        checked={selectedBankToAssign === b.id}
+                        onChange={() => setSelectedBankToAssign(b.id)}
+                        className="mt-0.5 text-primary-600 mr-3"
+                      />
+                      <div className="flex-1">
+                        <div className="flex justify-between items-center">
+                          <span className="font-bold text-xs text-neutral-900">{b.bankName}</span>
+                          {b.isDefault && <span className="text-[9px] bg-amber-100 text-amber-900 font-bold px-1.5 py-0.5 rounded">Default</span>}
+                        </div>
+                        <p className="text-[11px] font-mono text-neutral-500 mt-0.5">
+                          A/C •••• {b.accountNumber.slice(-4)} · UPI: {b.upiId}
+                        </p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+              <div className="px-6 py-3.5 bg-neutral-50 border-t border-neutral-100 flex justify-end gap-2.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setIsChangeBankModalOpen(false)}
+                  className="px-4 py-2 text-xs font-bold text-neutral-600 hover:bg-neutral-100 rounded-lg"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    assignBankToCustomer(displayId, selectedBankToAssign);
+                    setIsChangeBankModalOpen(false);
+                    setBankUpdateMsg('Payment bank account updated successfully!');
+                    setTimeout(() => setBankUpdateMsg(null), 3500);
+                  }}
+                  className="px-4 py-2 bg-primary-900 hover:bg-primary-800 text-white text-xs font-bold rounded-lg shadow-sm"
+                >
+                  Save Custom Bank
+                </button>
+              </div>
           </div>
         </div>
       )}

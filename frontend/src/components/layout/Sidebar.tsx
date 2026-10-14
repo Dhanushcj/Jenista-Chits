@@ -6,10 +6,13 @@ import {
   Users, 
   Layers, 
   FileText, 
-  Settings,
-  CreditCard,
-  ChevronDown
+  Settings, 
+  CreditCard, 
+  Receipt,
+  ChevronDown,
+  Landmark
 } from 'lucide-react';
+import { useAuth } from '../../store/AuthContext';
 
 interface SidebarProps {
   isOpen?: boolean;
@@ -44,7 +47,10 @@ export const Sidebar = ({ isOpen, setIsOpen }: SidebarProps) => {
     };
   }, []);
 
-  const navigation: NavItem[] = [
+  const { user } = useAuth();
+  const isStaff = user?.role === 'STAFF';
+
+  const adminNavigation: NavItem[] = [
     { name: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
     { name: 'Manage Plans', href: '/admin/manage-plans', icon: Settings },
     { 
@@ -64,6 +70,7 @@ export const Sidebar = ({ isOpen, setIsOpen }: SidebarProps) => {
       icon: CreditCard,
       badge: pendingPaymentsCount
     },
+    { name: 'Manage Bank', href: '/admin/banks', icon: Landmark },
     { name: 'Ledger', href: '/admin/ledger', icon: FileText },
     { 
       name: 'Reports', 
@@ -75,6 +82,30 @@ export const Sidebar = ({ isOpen, setIsOpen }: SidebarProps) => {
     },
     { name: 'Settings', href: '/admin/settings', icon: Settings },
   ];
+
+  const staffNavigation: NavItem[] = [
+    { name: 'Staff Dashboard', href: '/staff/dashboard', icon: LayoutDashboard },
+    { name: 'Raise Receipt', href: '/admin/receipts', icon: Receipt },
+    { 
+      name: 'Customers', 
+      href: '/admin/customers', 
+      icon: Users, 
+      subItems: [
+        { name: 'Register Customer', href: '/admin/customers/add' },
+        { name: 'Customer Directory', href: '/admin/customers' },
+      ]
+    },
+    { 
+      name: 'Reports', 
+      href: '/admin/reports', 
+      icon: FileText, 
+      subItems: [
+        { name: 'Non Payers & Dues', href: '/admin/reports/non-payers' }
+      ]
+    },
+  ];
+
+  const navigation = isStaff ? staffNavigation : adminNavigation;
 
   return (
     <>
@@ -166,12 +197,14 @@ export const Sidebar = ({ isOpen, setIsOpen }: SidebarProps) => {
         
         {/* User Profile Mini */}
         <div className="p-4 border-t border-neutral-200 bg-white flex items-center whitespace-nowrap overflow-hidden">
-          <div className="w-8 h-8 rounded-full bg-primary-100 text-primary-900 flex items-center justify-center font-bold shrink-0 border border-primary-200 shadow-sm">
-            AD
+          <div className="w-8 h-8 rounded-full bg-primary-100 text-primary-900 flex items-center justify-center font-bold shrink-0 border border-primary-200 shadow-sm text-xs">
+            {(user?.name || 'Admin User').slice(0, 2).toUpperCase()}
           </div>
           <div className="ml-4 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity duration-300">
-            <p className="text-sm font-bold text-neutral-900">Admin User</p>
-            <p className="text-xs text-neutral-500">System Administrator</p>
+            <p className="text-sm font-bold text-neutral-900">{user?.name || 'Admin User'}</p>
+            <p className="text-xs text-neutral-500">
+              {isStaff ? 'Collection & Field Staff' : 'System Administrator'}
+            </p>
           </div>
         </div>
       </div>

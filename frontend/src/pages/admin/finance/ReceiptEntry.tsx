@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Search, Printer, CheckCircle2, RotateCcw } from 'lucide-react';
 import { fetchClient } from '../../../api/client';
 import { printCashReceipt } from '../../../utils/receiptPrinter';
+import { useAuth } from '../../../store/AuthContext';
 
 interface ReceiptData {
   receiptNo: string;
@@ -36,7 +38,9 @@ const EMPTY: ReceiptData = {
 };
 
 export const ReceiptEntry = () => {
-  const [form, setForm] = useState<ReceiptData>({ ...EMPTY });
+  const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const [form, setForm] = useState<ReceiptData>({ ...EMPTY, executive: user?.name || 'Staff User' });
   const [saved, setSaved] = useState(false);
   const [customersDB, setCustomersDB] = useState<any[]>([]);
   const [chitGroups, setChitGroups] = useState<any[]>([]);
@@ -46,12 +50,40 @@ export const ReceiptEntry = () => {
 
   useEffect(() => {
     const c = localStorage.getItem('mockCustomers');
-    if (c) setCustomersDB(JSON.parse(c));
+    let loadedCusts: any[] = [];
+    if (c) {
+      loadedCusts = JSON.parse(c);
+      setCustomersDB(loadedCusts);
+    }
     const g = localStorage.getItem('mockChitGroups');
     if (g) setChitGroups(JSON.parse(g));
+    
     // Auto-generate receipt number
     const nextNo = `REC-${Date.now().toString().slice(-6)}`;
-    setForm(f => ({ ...f, receiptNo: nextNo }));
+    
+    // Check if query params were passed from Staff Dashboard
+    const paramCustId = searchParams.get('customerId');
+    const paramAmt = searchParams.get('amount');
+    const paramGroup = searchParams.get('chitGroup');
+
+    if (paramCustId && loadedCusts.length > 0) {
+      const found = loadedCusts.find((cust: any) => cust.id === paramCustId || cust.mongoId === paramCustId);
+      if (found) {
+        setForm(f => ({
+          ...f,
+          receiptNo: nextNo,
+          executive: user?.name || 'Staff User',
+          customerId: found.id,
+          customerName: found.name,
+          mobileNumber: found.mobile || found.phone || '',
+          receiptAmt: paramAmt || String(found.pending || ''),
+          chitGroup: paramGroup || (found.chits && found.chits[0]?.groupName) || '',
+        }));
+        return;
+      }
+    }
+
+    setForm(f => ({ ...f, receiptNo: nextNo, executive: user?.name || 'Staff User' }));
 
     fetchClient('/customers')
       .then((res: any) => {
@@ -105,7 +137,7 @@ export const ReceiptEntry = () => {
       alert('Please fill Customer, Amount, and Payment Mode.');
       return;
     }
-    // Save to ledger
+    // 1. Save to master ledger
     const existing = JSON.parse(localStorage.getItem('ledgerTransactions') || '[]');
     const entry = {
       id: form.receiptNo,
@@ -115,14 +147,39 @@ export const ReceiptEntry = () => {
       amount: Number(form.receiptAmt),
       reference: `${form.customerId} / ${form.chitGroup}`,
       description: `${form.type === 'COLLECTION' ? 'Collection' : 'Disbursal'} - Month ${form.monthNumber || '—'}`,
+      collectedBy: form.executive || user?.name || 'Staff User',
+      paymentMode: form.receiptMode,
     };
     localStorage.setItem('ledgerTransactions', JSON.stringify([entry, ...existing]));
+
+    // 2. Save to staffReceipts for Staff Dashboard & EOD Settlement
+    const staffReceipt = {
+      receiptNo: form.receiptNo,
+      date: form.receiptDate || new Date().toISOString().split('T')[0],
+      timestamp: new Date().toISOString(),
+      customerId: form.customerId,
+      customerName: form.customerName,
+      mobileNumber: form.mobileNumber,
+      chitGroup: form.chitGroup,
+      monthNumber: form.monthNumber,
+      amount: Number(form.receiptAmt),
+      mode: form.receiptMode,
+      referenceNo: form.referenceNo,
+      executive: form.executive || user?.name || 'Staff User',
+      status: 'COLLECTED',
+      type: form.type,
+    };
+    const existingStaffRecs = JSON.parse(localStorage.getItem('staffReceipts') || '[]');
+    localStorage.setItem('staffReceipts', JSON.stringify([staffReceipt, ...existingStaffRecs]));
+
+    // 3. Dispatch storage event so live dashboards update immediately
+    window.dispatchEvent(new Event('storage'));
     setSaved(true);
   };
 
   const handleReset = () => {
     const nextNo = `REC-${Date.now().toString().slice(-6)}`;
-    setForm({ ...EMPTY, receiptNo: nextNo, executive: 'Admin User' });
+    setForm({ ...EMPTY, receiptNo: nextNo, executive: user?.name || 'Staff User' });
     setSaved(false);
   };
 

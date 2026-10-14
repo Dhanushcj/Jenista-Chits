@@ -20,19 +20,36 @@ export const AdminLoginPage = () => {
     setError('');
 
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 600));
       
-      if (identifier === 'admin' && password === 'admin') {
-        login('mock-jwt-token', {
+      const cleanId = identifier.trim().toLowerCase();
+
+      // 1. Admin Login
+      if (cleanId === 'admin' && password === 'admin') {
+        login('mock-jwt-token-admin', {
           id: '1',
           name: 'System Admin',
           role: 'SUPER_ADMIN',
           permissions: ['*']
         });
         navigate('/admin/dashboard');
-      } else {
-        throw new Error('Invalid employee credentials');
+        return;
+      } 
+      
+      // 2. Staff Login (Field & Collection Staff)
+      if (cleanId === 'staff' && password === 'staff') {
+        login('mock-jwt-token-staff', {
+          id: 'staff-1',
+          name: 'Rajesh Kumar (Staff)',
+          role: 'STAFF',
+          permissions: ['receipts.create', 'receipts.read', 'customers.create', 'customers.read']
+        });
+        navigate('/staff/dashboard');
+        return;
       }
+
+      // 3. Fallback or custom employee checks
+      throw new Error('Invalid employee credentials. Please enter valid Admin or Staff login.');
     } catch (err: any) {
       setError(err.message || 'Login failed');
     } finally {
