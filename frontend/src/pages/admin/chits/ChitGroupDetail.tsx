@@ -4,6 +4,7 @@ import { Button } from '../../../components/common/Button';
 import { formatCurrency } from '../../../utils/format';
 import { Layers, Gavel, Calendar, Users, Target, AlertCircle, Landmark } from 'lucide-react';
 import { resolveBankForPayment } from '../../../utils/bankAccountsData';
+import { isMockGroup, isMockCustomer } from '../../../utils/cleanMockData';
 
 export const ChitGroupDetail = () => {
   const { id } = useParams();
@@ -13,9 +14,13 @@ export const ChitGroupDetail = () => {
   useEffect(() => {
     const saved = localStorage.getItem('mockChitGroups');
     if (saved) {
-      const groups = JSON.parse(saved);
-      const found = groups.find((g: any) => (g.id || g.code) === id);
-      setGroup(found || null);
+      try {
+        const groups = JSON.parse(saved);
+        const found = groups.find((g: any) => (g.id || g.code) === id && !isMockGroup(g));
+        setGroup(found || null);
+      } catch {
+        setGroup(null);
+      }
     }
   }, [id]);
 
@@ -59,7 +64,7 @@ export const ChitGroupDetail = () => {
 
   // Global data fetches for metrics and members tab
   const ledger = JSON.parse(localStorage.getItem('ledgerTransactions') || '[]');
-  const customers = JSON.parse(localStorage.getItem('mockCustomers') || '[]');
+  const customers = (JSON.parse(localStorage.getItem('mockCustomers') || '[]')).filter((c: any) => !isMockCustomer(c));
 
   const groupMembers: any[] = [];
   const targetGroupId = group.id || group.code;
@@ -67,6 +72,7 @@ export const ChitGroupDetail = () => {
   // 1. Direct enrolledMembers on group
   if (Array.isArray(group.enrolledMembers)) {
     group.enrolledMembers.forEach((m: any) => {
+      if (isMockCustomer(m)) return;
       const custName = m.customerName || 'Customer';
       groupMembers.push({
         ...m,
@@ -79,6 +85,7 @@ export const ChitGroupDetail = () => {
   // 2. Members from chitGroupMemberships
   const memberships = JSON.parse(localStorage.getItem('chitGroupMemberships') || '[]');
   memberships.forEach((m: any) => {
+    if (isMockCustomer({ id: m.customerId, name: m.customerName })) return;
     if (m.groupId === targetGroupId || m.groupName === group.name) {
       if (!groupMembers.some(existing => existing.ticketNumber === m.ticketNumber || (existing.customerId && existing.customerId === m.customerId))) {
         const custName = m.customerName || 'Customer';
@@ -93,6 +100,7 @@ export const ChitGroupDetail = () => {
 
   // 3. Members from customers list
   customers.forEach((cust: any) => {
+    if (isMockCustomer(cust)) return;
     if (cust.chits) {
       cust.chits.forEach((chit: any) => {
         if (chit.groupId === targetGroupId || chit.groupName === group.name) {
@@ -347,6 +355,8 @@ export const ChitGroupDetail = () => {
                     <tr>
                       <th className="p-4">Ticket No</th>
                       <th className="p-4">Customer Name</th>
+                      <th className="p-4">Scheme / Plan</th>
+                      <th className="p-4 text-center">Duration</th>
                       <th className="p-4">Joining Date</th>
                       <th className="p-4">Payment Status</th>
                     </tr>
@@ -356,7 +366,7 @@ export const ChitGroupDetail = () => {
                       if (groupMembers.length === 0) {
                         return (
                           <tr>
-                            <td colSpan={5} className="py-12 text-center text-neutral-400">
+                            <td colSpan={6} className="py-12 text-center text-neutral-400">
                               <Users className="w-8 h-8 mx-auto mb-3 text-neutral-300" />
                               <p>No members enrolled in this group yet.</p>
                             </td>
@@ -371,6 +381,10 @@ export const ChitGroupDetail = () => {
                             (t.reference?.includes(m.groupId) || t.description?.includes(m.groupId) || t.groupId === m.groupId))
                         );
 
+                        const scheme = m.scheme || 'Regular';
+                        const isFixed = scheme.toLowerCase().includes('fix');
+                        const isAuction = scheme.toLowerCase().includes('auc');
+
                         return (
                           <tr key={idx} className="hover:bg-neutral-50 transition-colors">
                             <td className="p-4 font-bold text-primary-900">#{m.ticketNumber}</td>
@@ -382,6 +396,20 @@ export const ChitGroupDetail = () => {
                                   <div className="text-xs text-neutral-500">{m.customerId}</div>
                                 </div>
                               </div>
+                            </td>
+                            <td className="p-4">
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                                isFixed
+                                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                  : isAuction
+                                    ? 'bg-purple-100 text-purple-800 border border-purple-300'
+                                    : 'bg-amber-100 text-amber-900 border border-amber-300'
+                              }`}>
+                                {scheme}
+                              </span>
+                            </td>
+                            <td className="p-4 text-center text-xs font-bold text-neutral-700">
+                              {m.months || m.duration || group.duration || 20} Mos
                             </td>
                             <td className="p-4 text-sm text-neutral-600">{m.joiningDate}</td>
                             <td className="p-4">

@@ -6,6 +6,7 @@ import { Button } from '../../../components/common/Button';
 import { formatCurrency } from '../../../utils/format';
 import { Link } from 'react-router-dom';
 import { fetchClient } from '../../../api/client';
+import { isMockCustomer } from '../../../utils/cleanMockData';
 
 export const CustomerList = () => {
   const [searchName, setSearchName] = useState('');
@@ -20,7 +21,7 @@ export const CustomerList = () => {
     const saved = localStorage.getItem('mockCustomers');
     if (saved) {
       const parsed = JSON.parse(saved);
-      return parsed.filter((p: any) => !['TC-10045', 'TC-10046', 'TC-10047', 'TC-10048'].includes(p.id) && p.name !== 'Rahul Sharma');
+      return Array.isArray(parsed) ? parsed.filter((p: any) => !isMockCustomer(p)) : [];
     }
     return [];
   });
@@ -54,14 +55,16 @@ export const CustomerList = () => {
               status: c.status || 'ACTIVE'
             };
           });
+          const cleanMapped = mapped.filter((c: any) => !isMockCustomer(c));
           const localOnly = localSaved.filter((lc: any) => 
+            !isMockCustomer(lc) &&
             !res.data.some((item: any) => 
               (item._id && lc.mongoId === item._id) || 
               (item.customerCode && lc.id === item.customerCode) ||
               (item.phone && (lc.mobile === item.phone || lc.phone === item.phone))
             )
           );
-          const combined = [...mapped, ...localOnly];
+          const combined = [...cleanMapped, ...localOnly];
           setAllCustomers(combined);
           setFilteredCustomers(combined);
           setHasSearched(true);

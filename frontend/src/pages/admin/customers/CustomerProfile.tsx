@@ -17,6 +17,7 @@ import {
   assignBankToCustomer, 
   resolveBankForPayment 
 } from '../../../utils/bankAccountsData';
+import { isMockGroup } from '../../../utils/cleanMockData';
 
 export const CustomerProfile = () => {
   const { id } = useParams();
@@ -60,7 +61,7 @@ export const CustomerProfile = () => {
       });
       if (local?.chits && Array.isArray(local.chits)) {
         local.chits.forEach((ch: any) => {
-          if (!chits.some(existing => existing.groupId === ch.groupId)) {
+          if (!chits.some(existing => existing.groupId === ch.groupId) && !isMockGroup({ id: ch.groupId, name: ch.groupName })) {
             chits.push(ch);
           }
         });
@@ -70,6 +71,7 @@ export const CustomerProfile = () => {
     // 2. Check chitGroupMemberships
     const memberships = JSON.parse(localStorage.getItem('chitGroupMemberships') || '[]');
     memberships.forEach((m: any) => {
+      if (isMockGroup({ id: m.groupId, name: m.groupName })) return;
       const mPhone = (m.mobile || m.phone || '').replace(/\D/g, '');
       if (
         m.customerId === targetId ||
@@ -100,6 +102,7 @@ export const CustomerProfile = () => {
     // 3. Check mockChitGroups enrolledMembers
     const groups = JSON.parse(localStorage.getItem('mockChitGroups') || '[]');
     groups.forEach((g: any) => {
+      if (isMockGroup(g)) return;
       if (Array.isArray(g.enrolledMembers)) {
         g.enrolledMembers.forEach((m: any) => {
           const mPhone = (m.mobile || m.phone || '').replace(/\D/g, '');

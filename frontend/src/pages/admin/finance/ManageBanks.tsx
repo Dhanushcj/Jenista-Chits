@@ -30,6 +30,7 @@ import {
   getBankReceivedStats,
   generateUpiQrBadge
 } from '../../../utils/bankAccountsData';
+import { isMockGroup, isMockCustomer } from '../../../utils/cleanMockData';
 
 type TabType = 'ACCOUNTS' | 'GROUP_ASSIGNMENTS' | 'CUSTOMER_ASSIGNMENTS' | 'STATEMENT';
 
@@ -72,10 +73,10 @@ export const ManageBanks = () => {
     setBanks(b);
     setAssignments(getStoredBankAssignments());
 
-    const g = JSON.parse(localStorage.getItem('mockChitGroups') || '[]');
+    const g = (JSON.parse(localStorage.getItem('mockChitGroups') || '[]')).filter((group: any) => !isMockGroup(group));
     setGroups(g);
 
-    const c = JSON.parse(localStorage.getItem('mockCustomers') || '[]');
+    const c = (JSON.parse(localStorage.getItem('mockCustomers') || '[]')).filter((cust: any) => !isMockCustomer(cust));
     setCustomers(c);
   };
 

@@ -5,9 +5,6 @@ import {
   Clock, 
   Search, 
   Printer, 
-  RotateCcw, 
-  Receipt, 
-  ChevronRight, 
   CreditCard,
   ShieldCheck,
   Check,
@@ -18,6 +15,7 @@ import {
 } from 'lucide-react';
 import { fetchClient } from '../../../api/client';
 import { printCashReceipt } from '../../../utils/receiptPrinter';
+import { isMockCustomer } from '../../../utils/cleanMockData';
 import type { PaymentRequest } from '../../../utils/paymentRequestsData';
 import {
   getStoredPaymentRequests,
@@ -26,7 +24,7 @@ import {
   rejectPaymentRequestAction
 } from '../../../utils/paymentRequestsData';
 
-type TabType = 'VERIFICATION' | 'WITHDRAWALS' | 'DIRECT_ENTRY';
+type TabType = 'VERIFICATION' | 'WITHDRAWALS';
 
 interface WithdrawalRequest {
   id: string;
@@ -53,21 +51,7 @@ interface WithdrawalRequest {
   remarks?: string;
 }
 
-const EMPTY_FORM = {
-  receiptNo: '',
-  txType: 'COLLECTION',
-  customerId: '',
-  customerName: '',
-  mobileNumber: '',
-  chitGroup: '',
-  monthNumber: '',
-  amount: '',
-  paymentMode: '',
-  referenceNo: '',
-  receiptDate: new Date().toISOString().split('T')[0],
-  executive: 'Admin User',
-  remarks: '',
-};
+
 
 export const Payments = () => {
   const [activeTab, setActiveTab] = useState<TabType>('VERIFICATION');
@@ -86,13 +70,7 @@ export const Payments = () => {
   const [disburseRefInput, setDisburseRefInput] = useState('');
   const [disburseModeInput, setDisburseModeInput] = useState('Bank Transfer');
 
-  // Manual Receipt Form States
-  const [form, setForm] = useState({ ...EMPTY_FORM });
-  const [saved, setSaved] = useState(false);
-  const [customersDB, setCustomersDB] = useState<any[]>([]);
-  const [chitGroups, setChitGroups] = useState<any[]>([]);
-  const [showCustomerPicker, setShowCustomerPicker] = useState(false);
-  const [customerQuery, setCustomerQuery] = useState('');
+
 
   // Load data
   const loadData = () => {
@@ -104,18 +82,10 @@ export const Payments = () => {
     const wReqs = JSON.parse(localStorage.getItem('withdrawalRequests') || '[]');
     setWithdrawalRequests(wReqs);
 
-    // Customers
-    const c = localStorage.getItem('mockCustomers');
-    if (c) setCustomersDB(JSON.parse(c));
-
-    // Groups
-    const g = localStorage.getItem('mockChitGroups');
-    if (g) setChitGroups(JSON.parse(g));
   };
 
   useEffect(() => {
     loadData();
-    setForm(f => ({ ...f, receiptNo: `REC-${Date.now().toString().slice(-6)}` }));
 
     // Listen for storage changes
     window.addEventListener('storage', loadData);
@@ -143,8 +113,8 @@ export const Payments = () => {
               chits: chits,
             };
           });
-          setCustomersDB(mapped);
-          localStorage.setItem('mockCustomers', JSON.stringify(mapped));
+          const cleanMapped = mapped.filter((item: any) => !isMockCustomer(item));
+          localStorage.setItem('mockCustomers', JSON.stringify(cleanMapped));
         }
       })
       .catch((err: any) => console.warn('Could not sync payments customers:', err));
@@ -334,63 +304,8 @@ export const Payments = () => {
     loadData();
   };
 
-  // Manual Receipt handlers
-  const setField = (k: keyof typeof EMPTY_FORM, v: string) => setForm(f => ({ ...f, [k]: v }));
-
-  const filteredCustomers = customersDB.filter(c => {
-    const q = customerQuery.toLowerCase();
-    return c.id?.toLowerCase().includes(q) || c.name?.toLowerCase().includes(q) || c.mobile?.includes(q);
-  });
-
-  const selectedCustomerChits = customersDB.find(c => c.id === form.customerId)?.chits || [];
-
-  const handleSelectCustomer = (c: any) => {
-    setForm(f => ({ ...f, customerId: c.id, customerName: c.name || '', mobileNumber: c.mobile || '', chitGroup: '' }));
-    setShowCustomerPicker(false);
-    setCustomerQuery('');
-  };
-
-  const handleSaveManual = () => {
-    if (!form.customerName || !form.amount || !form.paymentMode || !form.chitGroup) {
-      alert('Please fill Customer, Chit Group, Amount, and Payment Mode.');
-      return;
-    }
-    const entry = {
-      id: form.receiptNo,
-      date: new Date().toISOString(),
-      type: form.txType === 'COLLECTION' ? 'CREDIT' : 'DEBIT',
-      category: form.txType === 'COLLECTION' ? 'INSTALLMENT' : 'DISBURSAL',
-      amount: Number(form.amount),
-      reference: `${form.customerId || form.customerName} / ${form.chitGroup}`,
-      description: `${form.txType === 'COLLECTION' ? 'Collection' : 'Disbursal'} - Month ${form.monthNumber || '—'} - ${form.customerName}`,
-      customerName: form.customerName,
-      customerId: form.customerId,
-      groupId: form.chitGroup
-    };
-    const existing = JSON.parse(localStorage.getItem('ledgerTransactions') || '[]');
-    localStorage.setItem('ledgerTransactions', JSON.stringify([entry, ...existing]));
-    setSaved(true);
-    window.dispatchEvent(new Event('storage'));
-  };
-
-  const handlePrint = () => {
-    printCashReceipt({
-      receiptNo: form.receiptNo,
-      date: form.receiptDate,
-      customerName: form.customerName,
-      customerId: form.customerId,
-      customerMobile: form.mobileNumber,
-      groupName: form.chitGroup,
-      paymentMode: form.paymentMode || 'CASH',
-      amount: form.amount,
-      description: `${form.txType === 'COLLECTION' ? 'Collection' : 'Disbursal'} - Month ${form.monthNumber || '—'} - ${form.customerName}`,
-      referenceNo: form.referenceNo,
-      collectedBy: form.executive || 'Jenista Accounts'
-    });
-  };
-
   return (
-    <div className="space-y-6" onClick={() => showCustomerPicker && setShowCustomerPicker(false)}>
+    <div className="space-y-6">
       
       {/* PAGE HEADER */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -442,18 +357,6 @@ export const Payments = () => {
                 {pendingWithdrawalCount}
               </span>
             )}
-          </button>
-
-          <button
-            onClick={() => setActiveTab('DIRECT_ENTRY')}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
-              activeTab === 'DIRECT_ENTRY'
-                ? 'bg-primary-900 text-white shadow-sm'
-                : 'text-neutral-600 hover:text-neutral-900'
-            }`}
-          >
-            <Receipt className="w-4 h-4" />
-            Manual Receipt Entry
           </button>
         </div>
       </div>
@@ -879,173 +782,7 @@ export const Payments = () => {
         </div>
       )}
 
-      {/* ===================== TAB 3: MANUAL RECEIPT ENTRY ===================== */}
-      {activeTab === 'DIRECT_ENTRY' && (
-        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-          {/* CUSTOMER PICKER MODAL */}
-          {showCustomerPicker && (
-            <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 bg-black/25 backdrop-blur-sm"
-              onClick={e => { e.stopPropagation(); setShowCustomerPicker(false); }}>
-              <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
-                onClick={e => e.stopPropagation()}>
-                <div className="px-5 py-4 border-b border-slate-100 bg-slate-50 flex items-center gap-3">
-                  <Search className="w-4 h-4 text-slate-400 shrink-0" />
-                  <input autoFocus value={customerQuery} onChange={e => setCustomerQuery(e.target.value)}
-                    placeholder="Search by ID, Name or Phone..."
-                    className="flex-1 text-sm font-medium outline-none bg-transparent" />
-                </div>
-                <div className="max-h-72 overflow-y-auto divide-y divide-slate-50">
-                  {filteredCustomers.length === 0
-                    ? <p className="py-10 text-center text-sm text-slate-400">No customers found.</p>
-                    : filteredCustomers.map(c => (
-                      <div key={c.id} onClick={() => handleSelectCustomer(c)}
-                        className="flex justify-between items-center px-5 py-3.5 hover:bg-slate-50 cursor-pointer group">
-                        <div>
-                          <p className="text-sm font-bold text-slate-800">{c.name}</p>
-                          <p className="text-xs text-slate-400 font-mono">{c.id} · {c.mobile}</p>
-                        </div>
-                        <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-primary-600 transition-colors" />
-                      </div>
-                    ))}
-                </div>
-              </div>
-            </div>
-          )}
 
-          {/* SECTION 1 — Transaction Info */}
-          <SectionHeader title="Transaction Information" />
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 divide-x divide-y divide-slate-100 border-b border-slate-100">
-            <Field label="Transaction Type">
-              <select value={form.txType} onChange={e => setField('txType', e.target.value)} className="fselect">
-                <option value="COLLECTION">Collection (Incoming)</option>
-                <option value="DISBURSAL">Disbursal (Outgoing)</option>
-              </select>
-            </Field>
-            <Field label="Chit Group">
-              <select value={form.chitGroup} onChange={e => setField('chitGroup', e.target.value)} className="fselect">
-                <option value="">— Select —</option>
-                {selectedCustomerChits.length > 0
-                  ? selectedCustomerChits.map((ch: any, i: number) => <option key={i} value={ch.groupId}>{ch.groupId}</option>)
-                  : chitGroups.map((g: any, i: number) => <option key={i} value={g.code || g.id}>{g.code || g.id} – {g.name}</option>)
-                }
-              </select>
-            </Field>
-            <Field label="Receipt No.">
-              <input value={form.receiptNo} readOnly className="finput font-mono text-slate-400 bg-slate-50 text-xs" />
-            </Field>
-            <Field label="Reference / UTR No.">
-              <input value={form.referenceNo} onChange={e => setField('referenceNo', e.target.value)}
-                placeholder="Cheque / UTR / UPI Ref" className="finput" />
-            </Field>
-          </div>
-
-          {/* SECTION 2 — Customer Info */}
-          <SectionHeader title="Customer Information" />
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 divide-x divide-y divide-slate-100 border-b border-slate-100">
-            <Field label="Customer Name" colSpan>
-              <div className="flex">
-                <button type="button" onClick={e => { e.stopPropagation(); setShowCustomerPicker(true); }}
-                  className="pl-4 pr-3 flex items-center bg-slate-50 border-r border-slate-100 hover:bg-blue-50 hover:text-blue-700 transition-colors shrink-0">
-                  <Search className="w-4 h-4" />
-                </button>
-                <input value={form.customerName} readOnly
-                  onClick={e => { e.stopPropagation(); setShowCustomerPicker(true); }}
-                  placeholder="Click to search customer..." className="finput cursor-pointer flex-1" />
-              </div>
-            </Field>
-            <Field label="Mobile Number">
-              <input value={form.mobileNumber} readOnly className="finput bg-slate-50 text-slate-400" placeholder="Auto-filled" />
-            </Field>
-            <Field label="Executive / Operator">
-              <input value={form.executive} onChange={e => setField('executive', e.target.value)} className="finput" />
-            </Field>
-          </div>
-
-          {/* SECTION 3 — Payment Details */}
-          <SectionHeader title="Payment Details" />
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 divide-x divide-y divide-slate-100 border-b border-slate-100">
-            <Field label="Payment Mode">
-              <select value={form.paymentMode} onChange={e => setField('paymentMode', e.target.value)} className="fselect">
-                <option value="">— Select —</option>
-                <option value="CASH">Cash</option>
-                <option value="UPI">UPI</option>
-                <option value="NEFT">NEFT / IMPS</option>
-                <option value="CHEQUE">Cheque</option>
-                <option value="DD">Demand Draft</option>
-              </select>
-            </Field>
-            <Field label="Receipt Date">
-              <input type="date" value={form.receiptDate} onChange={e => setField('receiptDate', e.target.value)} className="finput" />
-            </Field>
-            <Field label="Month No.">
-              <input type="number" value={form.monthNumber} onChange={e => setField('monthNumber', e.target.value)}
-                placeholder="e.g. 1" className="finput" />
-            </Field>
-            <Field label="Receipt Amount (₹)">
-              <div className="flex items-center">
-                <span className="pl-4 font-black text-slate-400 shrink-0">₹</span>
-                <input type="number" value={form.amount} onChange={e => setField('amount', e.target.value)}
-                  placeholder="0.00" className="finput font-black text-xl text-primary-900 flex-1" />
-              </div>
-            </Field>
-            <Field label="Remarks" fullWidth>
-              <input value={form.remarks} onChange={e => setField('remarks', e.target.value)}
-                placeholder="Optional notes or description..." className="finput" />
-            </Field>
-          </div>
-
-          {/* NET AMOUNT DISPLAY */}
-          <div className="px-8 py-5 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-black uppercase tracking-widest text-slate-400">Net Transaction Amount</p>
-              <p className="text-3xl font-black text-primary-900 mt-1">
-                ₹{Number(form.amount || 0) > 0 ? Number(form.amount).toLocaleString('en-IN') : '0.00'}
-              </p>
-            </div>
-            {form.txType === 'COLLECTION' ? (
-              <span className="px-4 py-2 bg-emerald-100 text-emerald-700 rounded-xl text-xs font-black uppercase tracking-widest border border-emerald-200">Incoming Collection</span>
-            ) : (
-              <span className="px-4 py-2 bg-red-100 text-red-700 rounded-xl text-xs font-black uppercase tracking-widest border border-red-200">Outgoing Disbursal</span>
-            )}
-          </div>
-
-          {/* SUCCESS BANNER */}
-          {saved && (
-            <div className="px-6 py-4 bg-emerald-50 border-t border-emerald-200 flex items-center gap-3">
-              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-              <div>
-                <p className="text-sm font-bold text-emerald-800">Transaction recorded successfully.</p>
-                <p className="text-xs text-emerald-600">{form.receiptNo} is now visible in the General Ledger.</p>
-              </div>
-            </div>
-          )}
-
-          {/* FOOTER ACTIONS */}
-          <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between flex-wrap gap-3">
-            <div className="flex gap-2">
-              <button 
-                onClick={() => {
-                  setForm({ ...EMPTY_FORM, receiptNo: `REC-${Date.now().toString().slice(-6)}`, executive: 'Admin User' });
-                  setSaved(false);
-                }}
-                className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
-                <RotateCcw className="w-3.5 h-3.5" /> Clear
-              </button>
-              <button onClick={handlePrint}
-                className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
-                <Printer className="w-3.5 h-3.5" /> Print Receipt
-              </button>
-            </div>
-            <div className="flex gap-2">
-              <button onClick={handleSaveManual} disabled={saved}
-                className="flex items-center gap-2 px-7 py-2.5 bg-primary-900 text-white rounded-xl text-sm font-bold hover:bg-primary-800 transition-colors disabled:opacity-60 shadow-sm">
-                <CheckCircle2 className="w-4 h-4" />
-                {saved ? 'Saved ✓' : 'Confirm & Save Receipt'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* DISBURSEMENT CONFIRMATION MODAL */}
       {disbursingReq && (
@@ -1225,16 +962,4 @@ export const Payments = () => {
   );
 };
 
-const SectionHeader = ({ title }: { title: string }) => (
-  <div className="px-6 py-2.5 bg-slate-50 border-b border-t border-slate-100 flex items-center gap-2">
-    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{title}</span>
-  </div>
-);
 
-const Field = ({ label, children, colSpan, fullWidth }: { label: string; children: React.ReactNode; colSpan?: boolean; fullWidth?: boolean }) => (
-  <div className={`flex flex-col ${fullWidth ? 'col-span-4' : colSpan ? 'col-span-2' : 'col-span-1'}`}>
-    <span className="px-4 pt-2.5 pb-0.5 text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</span>
-    {children}
-    <div className="pb-1" />
-  </div>
-);

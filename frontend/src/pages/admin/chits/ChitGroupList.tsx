@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { Button } from '../../../components/common/Button';
 import { Input } from '../../../components/common/Input';
 import { Search, Filter, Layers, MoreVertical, X, Pencil, Trash2 } from 'lucide-react';
 import { formatCurrency } from '../../../utils/format';
+import { isMockGroup } from '../../../utils/cleanMockData';
 
 interface ChitGroup {
   id: string;
@@ -17,9 +18,8 @@ interface ChitGroup {
   status: string;
 }
 
-const DEFAULT_GROUPS: ChitGroup[] = [];
-
 export const ChitGroupList = () => {
+  const location = useLocation();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('');
   const [groups, setGroups] = useState<ChitGroup[]>([]);
@@ -44,36 +44,136 @@ export const ChitGroupList = () => {
   const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
 
   useEffect(() => {
-    const saved = localStorage.getItem('mockChitGroups');
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      // Remove old mock data if it matches the hardcoded defaults
-      if (parsed.length === 3 && parsed.find((p: any) => p.name === 'Gold Series A')) {
-        setGroups([]);
-        localStorage.setItem('mockChitGroups', JSON.stringify([]));
-      } else {
-        setGroups(parsed);
-      }
-    } else {
-      setGroups(DEFAULT_GROUPS);
-      localStorage.setItem('mockChitGroups', JSON.stringify(DEFAULT_GROUPS));
+    if (location.state && (location.state as any).openCreate) {
+      setIsModalOpen(true);
     }
+  }, [location.state]);
+
+  useEffect(() => {
+    const syncGroups = () => {
+      let raw: any[] = [];
+      const saved = localStorage.getItem('mockChitGroups');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) raw = parsed;
+        } catch { }
+      }
+
+      const groupMap = new Map<string, any>();
+      raw.filter((g: any) => !isMockGroup(g)).forEach((g: any) => {
+        const key = String(g.id || g.name || '').trim();
+        if (key) {
+          groupMap.set(key.toLowerCase(), g);
+          if (g.name) groupMap.set(String(g.name).trim().toLowerCase(), g);
+        }
+      });
+
+      // Discover groups from memberships
+      let memberships: any[] = [];
+      try {
+        const mStored = localStorage.getItem('chitGroupMemberships');
+        if (mStored) {
+          const parsedM = JSON.parse(mStored);
+          if (Array.isArray(parsedM)) memberships = parsedM;
+        }
+      } catch { }
+
+      memberships.forEach((m: any) => {
+        const grpKey = String(m.groupId || m.groupName || '').trim();
+        const grpName = String(m.groupName || m.groupId || '').trim();
+        if (grpKey && !isMockGroup({ id: grpKey, name: grpName })) {
+          if (!groupMap.has(grpKey.toLowerCase()) && !groupMap.has(grpName.toLowerCase())) {
+            const newG = {
+              id: grpKey,
+              name: grpName || grpKey,
+              type: m.scheme || 'Mixed Schemes',
+              value: Number(m.chitValue || 0),
+              duration: Number(m.duration || m.months || 20),
+              currentMonth: 0,
+              members: 20,
+              filled: 1,
+              status: 'ACTIVE'
+            };
+            groupMap.set(grpKey.toLowerCase(), newG);
+            groupMap.set(grpName.toLowerCase(), newG);
+          }
+        }
+      });
+
+      // Discover groups from customers' active chits
+      let customers: any[] = [];
+      try {
+        const cStored = localStorage.getItem('mockCustomers');
+        if (cStored) {
+          const parsedC = JSON.parse(cStored);
+          if (Array.isArray(parsedC)) customers = parsedC;
+        }
+      } catch { }
+
+      customers.forEach((c: any) => {
+        if (Array.isArray(c.chits)) {
+          c.chits.forEach((ch: any) => {
+            const grpKey = String(ch.groupId || ch.groupName || '').trim();
+            const grpName = String(ch.groupName || ch.groupId || '').trim();
+            if (grpKey && !isMockGroup({ id: grpKey, name: grpName })) {
+              if (!groupMap.has(grpKey.toLowerCase()) && !groupMap.has(grpName.toLowerCase())) {
+                const dur = Number(ch.duration || ch.months || 20);
+                const monthly = Number(ch.monthlyInstallment || 0);
+                const val = Number(ch.chitValue || (monthly > 0 ? monthly * dur : 0));
+                const newG = {
+                  id: grpKey,
+                  name: grpName || grpKey,
+                  type: ch.scheme || 'Mixed Schemes',
+                  value: val,
+                  duration: dur,
+                  currentMonth: 0,
+                  members: 20,
+                  filled: 1,
+                  status: 'ACTIVE'
+                };
+                groupMap.set(grpKey.toLowerCase(), newG);
+                groupMap.set(grpName.toLowerCase(), newG);
+              }
+            }
+          });
+        }
+      });
+
+      const uniqueList: any[] = [];
+      const seen = new Set<string>();
+      groupMap.forEach((g) => {
+        const k = String(g.id || g.name || '').trim().toLowerCase();
+        if (k && !seen.has(k)) {
+          seen.add(k);
+          if (g.name) seen.add(String(g.name).trim().toLowerCase());
+          uniqueList.push(g);
+        }
+      });
+
+      setGroups(uniqueList);
+      localStorage.setItem('mockChitGroups', JSON.stringify(uniqueList));
+    };
+
+    syncGroups();
+    window.addEventListener('storage', syncGroups);
+    return () => window.removeEventListener('storage', syncGroups);
   }, []);
 
   const handleCreateGroup = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name || !formData.value || !formData.duration || !formData.members) {
-      alert("Please fill all required fields.");
+    if (!formData.name.trim()) {
+      alert("Please enter a group name.");
       return;
     }
 
     const newGroup: ChitGroup = {
       id: `CG-${Math.floor(Math.random() * 900) + 100}-${formData.type.charAt(0)}`,
-      name: formData.name,
-      type: formData.type,
-      value: parseInt(formData.value),
-      duration: parseInt(formData.duration),
-      members: parseInt(formData.members),
+      name: formData.name.trim(),
+      type: formData.type || 'Mixed Schemes',
+      value: parseInt(formData.value) || 0,
+      duration: parseInt(formData.duration) || 20,
+      members: parseInt(formData.members) || 0,
       currentMonth: 0,
       filled: 0,
       status: 'FORMATION'
@@ -175,10 +275,11 @@ export const ChitGroupList = () => {
                 <Input placeholder="e.g. Diamond Series B" value={editFormData.name} onChange={e => setEditFormData({...editFormData, name: e.target.value})} required />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Group Type *</label>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Scheme / Plan *</label>
                 <select className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none bg-white font-medium text-slate-700" value={editFormData.type} onChange={e => setEditFormData({...editFormData, type: e.target.value})} required>
-                  <option value="AUCTION">Auction (Variable Bid)</option>
+                  <option value="REGULAR">Regular (Standard Plan)</option>
                   <option value="FIXED">Fixed (Standard Draw)</option>
+                  <option value="AUCTION">Auction (Variable Bid)</option>
                 </select>
               </div>
               <div>
@@ -225,31 +326,32 @@ export const ChitGroupList = () => {
               </div>
               
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Group Type *</label>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Scheme / Plan *</label>
                 <select 
                   className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none bg-white font-medium text-slate-700"
                   value={formData.type}
                   onChange={e => setFormData({...formData, type: e.target.value})}
                   required
                 >
-                  <option value="AUCTION">Auction (Variable Bid)</option>
+                  <option value="REGULAR">Regular (Standard Plan)</option>
                   <option value="FIXED">Fixed (Standard Draw)</option>
+                  <option value="AUCTION">Auction (Variable Bid)</option>
                 </select>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Total Chit Value (₹) *</label>
-                <Input type="number" placeholder="e.g. 500000" value={formData.value} onChange={e => setFormData({...formData, value: e.target.value})} required />
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Total Chit Value (₹) (Optional)</label>
+                <Input type="number" placeholder="e.g. 500000" value={formData.value} onChange={e => setFormData({...formData, value: e.target.value})} />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Duration (Months) *</label>
-                  <Input type="number" placeholder="e.g. 50" value={formData.duration} onChange={e => setFormData({...formData, duration: e.target.value})} required />
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Duration (Months) (Optional)</label>
+                  <Input type="number" placeholder="e.g. 20" value={formData.duration} onChange={e => setFormData({...formData, duration: e.target.value})} />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Members Capacity *</label>
-                  <Input type="number" placeholder="e.g. 50" value={formData.members} onChange={e => setFormData({...formData, members: e.target.value})} required />
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Members Capacity (Optional)</label>
+                  <Input type="number" placeholder="e.g. 20" value={formData.members} onChange={e => setFormData({...formData, members: e.target.value})} />
                 </div>
               </div>
 

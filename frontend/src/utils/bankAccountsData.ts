@@ -1,3 +1,5 @@
+import { isMockGroup, isMockCustomer } from './cleanMockData';
+
 export interface BankAccount {
   id: string;
   bankName: string;
@@ -73,17 +75,8 @@ const DEFAULT_BANKS: BankAccount[] = [
 ];
 
 const DEFAULT_ASSIGNMENTS: BankAssignments = {
-  groupAssignments: {
-    'CG-REG-101': 'BANK-001',
-    'CG-REG-102': 'BANK-001',
-    'CG-FIX-201': 'BANK-002',
-    'CG-AUC-301': 'BANK-002',
-    'CG-AUC-302': 'BANK-003'
-  },
-  customerAssignments: {
-    'CUST-1001': 'BANK-001',
-    'CUST-1004': 'BANK-002'
-  }
+  groupAssignments: {},
+  customerAssignments: {}
 };
 
 export const getStoredBankAccounts = (): BankAccount[] => {
@@ -134,7 +127,27 @@ export const getStoredBankAssignments = (): BankAssignments => {
       localStorage.setItem('companyBankAssignments', JSON.stringify(DEFAULT_ASSIGNMENTS));
       return DEFAULT_ASSIGNMENTS;
     }
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    const cleanGroupAssignments: Record<string, string> = {};
+    if (parsed.groupAssignments) {
+      Object.entries(parsed.groupAssignments).forEach(([k, v]) => {
+        if (!isMockGroup({ id: k }) && typeof v === 'string') {
+          cleanGroupAssignments[k] = v;
+        }
+      });
+    }
+    const cleanCustomerAssignments: Record<string, string> = {};
+    if (parsed.customerAssignments) {
+      Object.entries(parsed.customerAssignments).forEach(([k, v]) => {
+        if (!isMockCustomer({ id: k }) && typeof v === 'string') {
+          cleanCustomerAssignments[k] = v;
+        }
+      });
+    }
+    return {
+      groupAssignments: cleanGroupAssignments,
+      customerAssignments: cleanCustomerAssignments
+    };
   } catch {
     return DEFAULT_ASSIGNMENTS;
   }

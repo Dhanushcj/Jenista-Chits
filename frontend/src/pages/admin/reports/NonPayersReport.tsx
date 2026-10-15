@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { FileText, Download, Filter, Search, AlertCircle, Phone } from 'lucide-react';
 import { formatCurrency } from '../../../utils/format';
+import { isMockGroup, isMockCustomer } from '../../../utils/cleanMockData';
 
 export const NonPayersReport = () => {
   const [nonPayers, setNonPayers] = useState<any[]>([]);
@@ -10,8 +11,8 @@ export const NonPayersReport = () => {
 
   useEffect(() => {
     // 1. Load data
-    const allGroups = JSON.parse(localStorage.getItem('mockChitGroups') || '[]');
-    const customers = JSON.parse(localStorage.getItem('mockCustomers') || '[]');
+    const allGroups = (JSON.parse(localStorage.getItem('mockChitGroups') || '[]')).filter((g: any) => !isMockGroup(g));
+    const customers = (JSON.parse(localStorage.getItem('mockCustomers') || '[]')).filter((c: any) => !isMockCustomer(c));
     const ledger = JSON.parse(localStorage.getItem('ledgerTransactions') || '[]');
 
     setGroups(allGroups);

@@ -6,6 +6,7 @@ import { Input } from '../../../components/common/Input';
 import { Button } from '../../../components/common/Button';
 import { fetchClient } from '../../../api/client';
 import { useAuth } from '../../../store/AuthContext';
+import { isMockCustomer } from '../../../utils/cleanMockData';
 
 export const AddModifyCustomer = () => {
   const { user } = useAuth();
@@ -18,7 +19,7 @@ export const AddModifyCustomer = () => {
     const saved = localStorage.getItem('mockCustomers');
     if (saved) {
       const parsed = JSON.parse(saved);
-      return parsed.filter((p: any) => p.id !== 'TC-10045' && p.name !== 'Rahul Sharma');
+      return Array.isArray(parsed) ? parsed.filter((p: any) => !isMockCustomer(p)) : [];
     }
     return [];
   });
@@ -52,8 +53,9 @@ export const AddModifyCustomer = () => {
               status: c.status || 'ACTIVE'
             };
           });
-          setMockCustomers(mapped);
-          localStorage.setItem('mockCustomers', JSON.stringify(mapped));
+          const cleanMapped = mapped.filter((c: any) => !isMockCustomer(c));
+          setMockCustomers(cleanMapped);
+          localStorage.setItem('mockCustomers', JSON.stringify(cleanMapped));
         }
       } catch (e) {
         console.warn('Could not sync customers with MongoDB in AddModifyCustomer:', e);

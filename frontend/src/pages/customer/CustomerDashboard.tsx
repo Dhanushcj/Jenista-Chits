@@ -8,6 +8,7 @@ import { FixedPlanSchedule } from '../../components/customer/FixedPlanSchedule';
 import { AuctionPlanSchedule } from '../../components/customer/AuctionPlanSchedule';
 import { RegularPlanSchedule } from '../../components/customer/RegularPlanSchedule';
 import { resolveBankForPayment, generateUpiQrBadge, getStoredBankAccounts, type BankAccount } from '../../utils/bankAccountsData';
+import { isMockGroup } from '../../utils/cleanMockData';
 
 export const CustomerDashboard = () => {
   const { user, logout } = useAuth();
@@ -84,11 +85,13 @@ export const CustomerDashboard = () => {
           );
         });
         
-        let finalChits = (chitsFromApi && chitsFromApi.length > 0) ? chitsFromApi : (customer?.chits || []);
+        let finalChits = ((chitsFromApi && chitsFromApi.length > 0) ? chitsFromApi : (customer?.chits || []))
+          .filter((ch: any) => !isMockGroup({ id: ch.groupId, name: ch.groupName }));
 
         // Also check chitGroupMemberships and mockChitGroups enrolledMembers
         const memberships = JSON.parse(localStorage.getItem('chitGroupMemberships') || '[]');
         const userMemberships = memberships.filter((m: any) => {
+          if (isMockGroup({ id: m.groupId, name: m.groupName })) return false;
           const mPhone = (m.mobile || m.phone || '').replace(/\D/g, '');
           return (
             m.customerId === user.id || 
@@ -99,6 +102,7 @@ export const CustomerDashboard = () => {
         const groups = JSON.parse(localStorage.getItem('mockChitGroups') || '[]');
         const groupEnrolledChits: any[] = [];
         groups.forEach((g: any) => {
+          if (isMockGroup(g)) return;
           if (Array.isArray(g.enrolledMembers)) {
             g.enrolledMembers.forEach((m: any) => {
               const mPhone = (m.mobile || m.phone || '').replace(/\D/g, '');
@@ -593,7 +597,18 @@ export const CustomerDashboard = () => {
                   <div key={index} className="card p-0 overflow-hidden hover:shadow-md transition-shadow">
                     <div className="p-5 border-b border-neutral-100 flex justify-between items-start bg-white">
                       <div>
-                        <h4 className="font-bold text-lg text-primary-900">{chit.groupName || chit.groupId}</h4>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="font-bold text-lg text-primary-900">{chit.groupName || chit.groupId}</h4>
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold ${
+                            (chit.scheme || '').toLowerCase().includes('fix')
+                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                              : (chit.scheme || '').toLowerCase().includes('auc')
+                                ? 'bg-purple-100 text-purple-800 border border-purple-300'
+                                : 'bg-amber-100 text-amber-900 border border-amber-300'
+                          }`}>
+                            {chit.scheme || 'Regular'} Plan ({chit.months || chit.duration || 20}M)
+                          </span>
+                        </div>
                         <p className="text-sm text-neutral-500 mt-1">Ticket Number: <span className="font-bold text-neutral-700">#{chit.ticketNumber}</span></p>
                         {chit.dueDate && (
                           <p className="text-xs text-neutral-400 mt-1">

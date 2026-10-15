@@ -21,6 +21,7 @@ import { formatCurrency, formatDate } from '../../utils/format';
 import { printCashReceipt } from '../../utils/receiptPrinter';
 import { useAuth } from '../../store/AuthContext';
 import { fetchClient } from '../../api/client';
+import { isMockCustomer, isMockGroup } from '../../utils/cleanMockData';
 
 export const StaffDashboard = () => {
   const navigate = useNavigate();
@@ -62,63 +63,54 @@ export const StaffDashboard = () => {
     // 1. Load customers
     const c = localStorage.getItem('mockCustomers');
     if (c) {
-      const parsed = JSON.parse(c);
-      setCustomers(parsed);
-      // Filter registrations added by staff or marked pending
-      const staffRegs = parsed.filter((cust: any) => 
-        cust.referredBy?.toLowerCase().includes('staff') || 
-        cust.status === 'PENDING_APPROVAL' ||
-        cust.registeredBy?.includes(user?.name || '')
-      );
-      setMyRegistrations(staffRegs);
+      try {
+        const parsed = JSON.parse(c);
+        const cleanCusts = Array.isArray(parsed) ? parsed.filter((cust: any) => !isMockCustomer(cust)) : [];
+        setCustomers(cleanCusts);
+        // Filter registrations added by staff or marked pending
+        const staffRegs = cleanCusts.filter((cust: any) => 
+          cust.referredBy?.toLowerCase().includes('staff') || 
+          cust.status === 'PENDING_APPROVAL' ||
+          cust.registeredBy?.includes(user?.name || '')
+        );
+        setMyRegistrations(staffRegs);
+      } catch {
+        setCustomers([]);
+        setMyRegistrations([]);
+      }
+    } else {
+      setCustomers([]);
+      setMyRegistrations([]);
     }
 
     // 2. Load Chit Groups
     const g = localStorage.getItem('mockChitGroups');
-    if (g) setChitGroups(JSON.parse(g));
+    if (g) {
+      try {
+        const parsed = JSON.parse(g);
+        const cleanGroups = Array.isArray(parsed) ? parsed.filter((group: any) => !isMockGroup(group)) : [];
+        setChitGroups(cleanGroups);
+      } catch {
+        setChitGroups([]);
+      }
+    } else {
+      setChitGroups([]);
+    }
 
     // 3. Load Receipts
     const recs = localStorage.getItem('staffReceipts');
     if (recs) {
-      setStaffReceipts(JSON.parse(recs));
+      try {
+        const parsed = JSON.parse(recs);
+        const cleanRecs = Array.isArray(parsed)
+          ? parsed.filter((r: any) => !isMockCustomer({ id: r.customerId, name: r.customerName }) && !isMockGroup({ id: r.chitGroup, name: r.chitGroup }))
+          : [];
+        setStaffReceipts(cleanRecs);
+      } catch {
+        setStaffReceipts([]);
+      }
     } else {
-      // Seed some demo receipts if empty
-      const demoRecs = [
-        {
-          receiptNo: `REC-${Date.now().toString().slice(-6)}`,
-          date: todayStr,
-          timestamp: new Date().toISOString(),
-          customerId: 'CUST-1001',
-          customerName: 'Karthik Subramanian',
-          mobileNumber: '9840123456',
-          chitGroup: 'CHIT-100K-A',
-          monthNumber: '3',
-          amount: 5000,
-          mode: 'CASH',
-          referenceNo: 'CASH-001',
-          executive: user?.name || 'Rajesh Kumar (Staff)',
-          status: 'COLLECTED',
-          type: 'COLLECTION'
-        },
-        {
-          receiptNo: `REC-${(Date.now() - 3600000).toString().slice(-6)}`,
-          date: todayStr,
-          timestamp: new Date(Date.now() - 3600000).toISOString(),
-          customerId: 'CUST-1004',
-          customerName: 'Priya Meenakshi',
-          mobileNumber: '9840987654',
-          chitGroup: 'CHIT-200K-B',
-          monthNumber: '2',
-          amount: 10000,
-          mode: 'ONLINE',
-          referenceNo: 'UPI/9840192837',
-          executive: user?.name || 'Rajesh Kumar (Staff)',
-          status: 'COLLECTED',
-          type: 'COLLECTION'
-        }
-      ];
-      localStorage.setItem('staffReceipts', JSON.stringify(demoRecs));
-      setStaffReceipts(demoRecs);
+      setStaffReceipts([]);
     }
 
     // 4. Load Handovers
@@ -139,7 +131,7 @@ export const StaffDashboard = () => {
             chits: item.chits || [],
             referredBy: item.referredBy
           }));
-          setCustomers(mapped);
+          setCustomers(mapped.filter((c: any) => !isMockCustomer(c)));
         }
       })
       .catch(() => {});

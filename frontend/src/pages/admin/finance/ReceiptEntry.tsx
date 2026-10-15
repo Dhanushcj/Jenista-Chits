@@ -4,6 +4,7 @@ import { Search, Printer, CheckCircle2, RotateCcw } from 'lucide-react';
 import { fetchClient } from '../../../api/client';
 import { printCashReceipt } from '../../../utils/receiptPrinter';
 import { useAuth } from '../../../store/AuthContext';
+import { isMockCustomer, isMockGroup } from '../../../utils/cleanMockData';
 
 interface ReceiptData {
   receiptNo: string;
@@ -52,11 +53,23 @@ export const ReceiptEntry = () => {
     const c = localStorage.getItem('mockCustomers');
     let loadedCusts: any[] = [];
     if (c) {
-      loadedCusts = JSON.parse(c);
-      setCustomersDB(loadedCusts);
+      try {
+        const parsed = JSON.parse(c);
+        loadedCusts = Array.isArray(parsed) ? parsed.filter((cust: any) => !isMockCustomer(cust)) : [];
+        setCustomersDB(loadedCusts);
+      } catch {
+        setCustomersDB([]);
+      }
     }
     const g = localStorage.getItem('mockChitGroups');
-    if (g) setChitGroups(JSON.parse(g));
+    if (g) {
+      try {
+        const parsed = JSON.parse(g);
+        setChitGroups(Array.isArray(parsed) ? parsed.filter((grp: any) => !isMockGroup(grp)) : []);
+      } catch {
+        setChitGroups([]);
+      }
+    }
     
     // Auto-generate receipt number
     const nextNo = `REC-${Date.now().toString().slice(-6)}`;
@@ -107,8 +120,9 @@ export const ReceiptEntry = () => {
               chits: chits,
             };
           });
-          setCustomersDB(mapped);
-          localStorage.setItem('mockCustomers', JSON.stringify(mapped));
+          const cleanMapped = mapped.filter((item: any) => !isMockCustomer(item));
+          setCustomersDB(cleanMapped);
+          localStorage.setItem('mockCustomers', JSON.stringify(cleanMapped));
         }
       })
       .catch((err: any) => console.warn('Could not sync receipt entry customers:', err));

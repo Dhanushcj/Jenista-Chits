@@ -25,6 +25,10 @@ import { ManageBanks } from './pages/admin/finance/ManageBanks';
 import { CustomerDashboard } from './pages/customer/CustomerDashboard';
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { purgeMockData } from './utils/cleanMockData';
+
+// Purge any legacy mock customers and groups on startup
+purgeMockData();
 
 const queryClient = new QueryClient();
 
