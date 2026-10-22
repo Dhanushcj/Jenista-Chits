@@ -240,7 +240,7 @@ export const Sidebar = (_props: SidebarProps = {}) => {
             {isHovered && (
               <div className="flex flex-col min-w-0 animate-in fade-in duration-200">
                 <span className="font-extrabold text-white text-base tracking-tight leading-tight truncate">
-                  TrustChit
+                  Jenista Chits
                 </span>
                 <span className="text-[10px] font-bold text-amber-400 uppercase tracking-widest leading-none mt-0.5">
                   Chit Funds

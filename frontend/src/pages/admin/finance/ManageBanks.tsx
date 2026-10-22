@@ -56,7 +56,7 @@ export const ManageBanks = () => {
   // Form State
   const [formData, setFormData] = useState({
     bankName: '',
-    accountHolderName: 'TrustChit Funds Pvt Ltd',
+    accountHolderName: 'Jenista Chits Pvt Ltd',
     accountNumber: '',
     ifscCode: '',
     branch: '',
@@ -96,7 +96,7 @@ export const ManageBanks = () => {
     setEditingBank(null);
     setFormData({
       bankName: '',
-      accountHolderName: 'TrustChit Funds Pvt Ltd',
+      accountHolderName: 'Jenista Chits Pvt Ltd',
       accountNumber: '',
       ifscCode: '',
       branch: '',
@@ -905,7 +905,7 @@ export const ManageBanks = () => {
                   <input
                     type="text"
                     required
-                    placeholder="e.g. TrustChit Funds Pvt Ltd"
+                    placeholder="e.g. Jenista Chits Pvt Ltd"
                     value={formData.accountHolderName}
                     onChange={(e) => setFormData({ ...formData, accountHolderName: e.target.value })}
                     className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm font-semibold focus:ring-2 focus:ring-primary-500 outline-none"
@@ -963,7 +963,7 @@ export const ManageBanks = () => {
                     <input
                       type="text"
                       required
-                      placeholder="e.g. trustchit@hdfcbank"
+                      placeholder="e.g. jenistachits@hdfcbank"
                       value={formData.upiId}
                       onChange={(e) => setFormData({ ...formData, upiId: e.target.value })}
                       className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm font-mono font-semibold focus:ring-2 focus:ring-primary-500 outline-none"

@@ -9,19 +9,20 @@ import { cn } from '../../../utils/cn';
 
 // Default Models
 const DEFAULT_ORG = { 
-  name: 'TrustChit Financial Services Pvt. Ltd.', 
-  cin: 'U65992DL2026PTC123456', 
-  gstin: '07AAAAA0000A1Z5', 
-  foreman: 'FR-DL-2026-0042', 
-  address: '124 Financial District, Block A', 
-  city: 'New Delhi', 
-  state: 'Delhi', 
-  pin: '110001', 
-  email: 'admin@trustchit.com' 
+  name: 'Jenista Chits Pvt. Ltd.', 
+  cin: 'U67190TZ2020PTC033361', 
+  gstin: '33AAAAJ0000A1Z5', 
+  foreman: 'FR-TN-2020-0042', 
+  address: 'D.No. 4/342/4, Mani Road, Pudukkottai', 
+  city: 'Thoothukudi', 
+  state: 'Tamil Nadu', 
+  pin: '628103', 
+  email: 'jenistachits@gmail.com' 
 };
 
 const DEFAULT_BRANCHES = [
-  { id: 'B001', name: 'Head Office', location: 'New Delhi', manager: 'Admin User' }
+  { id: 'B001', name: 'Head Office', location: 'Thoothukudi', manager: 'Admin User' },
+  { id: 'B002', name: 'Branch Office', location: 'Hosur', manager: 'Branch Manager' }
 ];
 
 const DEFAULT_ROLES = [

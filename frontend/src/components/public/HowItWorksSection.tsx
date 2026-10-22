@@ -29,7 +29,7 @@ export const HowItWorksSection = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         <div className="text-center max-w-3xl mx-auto mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold text-primary-950 mb-4">How TrustChit Works</h2>
+          <h2 className="text-3xl md:text-4xl font-bold text-primary-950 mb-4">How Jenista Chits Works</h2>
           <p className="text-neutral-600 text-lg">
             A simple, transparent, and rewarding 4-step process to financial empowerment.
           </p>

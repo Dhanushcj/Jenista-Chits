@@ -5,13 +5,13 @@ export const TestimonialsSection = () => {
     {
       name: "Rajesh Kumar",
       role: "Textile Business Owner",
-      quote: "TrustChit provided me the capital to expand my shop exactly when the banks delayed my loan. The auction process is fully transparent and incredibly fast.",
+      quote: "Jenista Chits provided me the capital to expand my shop exactly when the banks delayed my loan. The auction process is fully transparent and incredibly fast.",
       image: "/assets/business.jpg"
     },
     {
       name: "Sneha Reddy",
       role: "Software Engineer",
-      quote: "I use TrustChit as a disciplined saving tool. The dividend I get every month makes my effective return much higher than standard bank recurring deposits.",
+      quote: "I use Jenista Chits as a disciplined saving tool. The dividend I get every month makes my effective return much higher than standard bank recurring deposits.",
       image: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=200"
     },
     {

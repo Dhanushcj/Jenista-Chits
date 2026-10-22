@@ -15,7 +15,7 @@ export const AboutUsSection = () => {
               <span className="text-accent-dark">Indian Aspirations.</span>
             </h2>
             <p className="text-lg text-neutral-600 leading-relaxed">
-              TrustChit is not just a financial institution; we are a community-driven movement. Since our inception, we have championed the dual power of disciplined savings and accessible credit, helping millions of families and small businesses achieve their dreams without the burden of traditional debt.
+              Jenista Chits is not just a financial institution; we are a community-driven movement. Since our inception, we have championed the dual power of disciplined savings and accessible credit, helping millions of families and small businesses achieve their dreams without the burden of traditional debt.
             </p>
             
             <div className="space-y-8 pt-8">

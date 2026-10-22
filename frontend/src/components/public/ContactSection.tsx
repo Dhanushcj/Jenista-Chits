@@ -19,46 +19,67 @@ export const ContactSection = () => {
           {/* Contact Information */}
           <div className="space-y-8">
             <div className="bg-white p-8 rounded-2xl shadow-sm border border-neutral-200">
-              <h3 className="text-2xl font-bold text-primary-950 mb-8">Head Office</h3>
+              <h3 className="text-2xl font-bold text-primary-950 mb-8">Contact & Office Details</h3>
               
               <div className="space-y-6">
                 <div className="flex items-start">
-                  <div className="bg-primary-50 p-3 rounded-lg mr-4 text-primary-500">
+                  <div className="bg-primary-50 p-3 rounded-lg mr-4 text-primary-500 flex-shrink-0">
                     <MapPin className="w-6 h-6" />
                   </div>
                   <div>
-                    <h4 className="font-bold text-primary-950">Location</h4>
-                    <p className="text-neutral-600 mt-1">123 Financial District, Tech Park Road,<br />Mumbai, Maharashtra 400001</p>
+                    <h4 className="font-bold text-primary-950">Head Office</h4>
+                    <p className="text-neutral-600 mt-1">
+                      D.No. 4/342/4, Mani Road, Pudukkottai,<br />
+                      Thoothukudi - 628 103, Tamil Nadu
+                    </p>
+                    <div className="mt-3 pt-3 border-t border-neutral-100">
+                      <h5 className="font-bold text-primary-950 text-sm">Branch Office</h5>
+                      <p className="text-neutral-600 text-sm mt-0.5">Hosur, Tamil Nadu</p>
+                    </div>
                   </div>
                 </div>
 
                 <div className="flex items-start">
-                  <div className="bg-primary-50 p-3 rounded-lg mr-4 text-primary-500">
+                  <div className="bg-primary-50 p-3 rounded-lg mr-4 text-primary-500 flex-shrink-0">
                     <Phone className="w-6 h-6" />
                   </div>
                   <div>
                     <h4 className="font-bold text-primary-950">Call Us</h4>
-                    <p className="text-neutral-600 mt-1">Toll Free: 1800-123-4567<br />Support: +91 98765 43210</p>
+                    <p className="text-neutral-600 mt-1 space-y-1">
+                      <a href="tel:+917094295556" className="block hover:text-primary-600 transition-colors">
+                        +91 70942 95556
+                      </a>
+                      <a href="tel:+917094045556" className="block hover:text-primary-600 transition-colors">
+                        +91 70940 45556
+                      </a>
+                    </p>
                   </div>
                 </div>
 
                 <div className="flex items-start">
-                  <div className="bg-primary-50 p-3 rounded-lg mr-4 text-primary-500">
+                  <div className="bg-primary-50 p-3 rounded-lg mr-4 text-primary-500 flex-shrink-0">
                     <Mail className="w-6 h-6" />
                   </div>
                   <div>
                     <h4 className="font-bold text-primary-950">Email</h4>
-                    <p className="text-neutral-600 mt-1">support@trustchit.in<br />info@trustchit.in</p>
+                    <p className="text-neutral-600 mt-1">
+                      <a href="mailto:jenistachits@gmail.com" className="hover:text-primary-600 transition-colors">
+                        jenistachits@gmail.com
+                      </a>
+                    </p>
                   </div>
                 </div>
 
                 <div className="flex items-start">
-                  <div className="bg-primary-50 p-3 rounded-lg mr-4 text-primary-500">
+                  <div className="bg-primary-50 p-3 rounded-lg mr-4 text-primary-500 flex-shrink-0">
                     <Clock className="w-6 h-6" />
                   </div>
                   <div>
                     <h4 className="font-bold text-primary-950">Working Hours</h4>
-                    <p className="text-neutral-600 mt-1">Mon - Sat: 9:30 AM to 6:30 PM<br />Sunday: Closed</p>
+                    <p className="text-neutral-600 mt-1">
+                      Mon - Sat: 9:30 AM to 6:30 PM<br />
+                      Sunday: Closed
+                    </p>
                   </div>
                 </div>
               </div>

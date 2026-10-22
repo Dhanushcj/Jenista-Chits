@@ -39,22 +39,39 @@ export const Footer = () => {
 
           <div>
             <h4 className="text-white font-semibold mb-4 uppercase tracking-wider text-sm">Contact Us</h4>
-            <ul className="space-y-3 text-sm">
-              <li className="flex items-start">
-                <MapPin className="w-4 h-4 mr-2 text-neutral-500 flex-shrink-0 mt-0.5" />
-                <span><b>HEAD OFFICE</b><br />D.NO.4/342/4,Mani Road , Pudukkottai ,<br />Thoothukudi - 628 103 .<br /><b>BRANCH OFFICE: HOSUR</b></span>
+            <ul className="space-y-3.5 text-sm">
+              <li className="flex items-start gap-2.5">
+                <MapPin className="w-4 h-4 text-neutral-400 flex-shrink-0 mt-1" />
+                <div className="space-y-2">
+                  <div>
+                    <span className="block font-semibold text-neutral-200 text-xs uppercase tracking-wide">Head Office</span>
+                    <p className="text-neutral-400 leading-relaxed">
+                      D.No. 4/342/4, Mani Road,<br />
+                      Pudukkottai, Thoothukudi - 628 103.
+                    </p>
+                  </div>
+                  <div>
+                    <span className="block font-semibold text-neutral-200 text-xs uppercase tracking-wide">Branch Office</span>
+                    <p className="text-neutral-400 leading-relaxed">Hosur</p>
+                  </div>
+                </div>
               </li>
-              <li className="flex items-center">
-                <Phone className="w-4 h-4 mr-2 text-neutral-500 flex-shrink-0" />
-                <span>+91 70942 95556, 70940 45556</span>
+              <li className="flex items-center gap-2.5">
+                <Phone className="w-4 h-4 text-neutral-400 flex-shrink-0" />
+                <div className="flex flex-wrap gap-x-1.5 text-neutral-400">
+                  <a href="tel:+917094295556" className="hover:text-accent transition-colors">+91 70942 95556</a>,
+                  <a href="tel:+917094045556" className="hover:text-accent transition-colors">70940 45556</a>
+                </div>
               </li>
-              <li className="flex items-center">
-                <Mail className="w-4 h-4 mr-2 text-neutral-500 flex-shrink-0" />
-                <span>jenistachits@gmail.com</span>
+              <li className="flex items-center gap-2.5">
+                <Mail className="w-4 h-4 text-neutral-400 flex-shrink-0" />
+                <a href="mailto:jenistachits@gmail.com" className="hover:text-accent transition-colors text-neutral-400">
+                  jenistachits@gmail.com
+                </a>
               </li>
-              <li className="flex items-center">
-                <span className="w-4 h-4 mr-2 text-neutral-500 flex-shrink-0 flex items-center justify-center font-bold text-[10px]">CIN</span>
-                <span>U67190TZ2020PTC033361</span>
+              <li className="flex items-center gap-2.5">
+                <span className="w-4 h-4 text-neutral-400 flex-shrink-0 flex items-center justify-center font-bold text-[10px] tracking-tight border border-neutral-600 rounded-sm">CIN</span>
+                <span className="text-neutral-400 font-mono text-xs tracking-wide">U67190TZ2020PTC033361</span>
               </li>
             </ul>
           </div>

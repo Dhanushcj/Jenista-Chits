@@ -36,7 +36,7 @@ export const AppFeaturesSection = () => {
 
         {/* Digital App Features Section */}
         <div className="text-center border-t border-neutral-100 pt-24">
-          <h2 className="text-3xl md:text-4xl font-bold text-primary-950 mb-4">TrustChit Digital App</h2>
+          <h2 className="text-3xl md:text-4xl font-bold text-primary-950 mb-4">Jenista Chits Digital App</h2>
           <p className="text-lg text-neutral-600 max-w-2xl mx-auto mb-16">
             Download our user-friendly mobile application and carry every detail in your pocket to access them from anywhere.
           </p>
