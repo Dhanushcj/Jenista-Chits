@@ -1004,12 +1004,13 @@ export const AdminDashboard = () => {
                   <th className="px-5 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Monthly Due</th>
                   <th className="px-5 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Chit Value</th>
                   <th className="px-5 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Payment Status</th>
+                  <th className="px-5 py-3 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-slate-100 whitespace-nowrap">
                 {groupCustomers.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-5 py-12 text-center text-xs text-slate-400 font-medium">
+                    <td colSpan={8} className="px-5 py-12 text-center text-xs text-slate-400 font-medium">
                       No customers enrolled in this group yet. Click "+ Add Customer" above to begin enrollment.
                     </td>
                   </tr>
@@ -1022,11 +1023,37 @@ export const AdminDashboard = () => {
                       (activeGroup.name && ch.groupName === activeGroup.name)
                     )) || c.chits?.[0];
 
+                    const custTargetId = c.id || c.customerCode || c.mongoId;
+                    const monthlyDue = chit?.monthlyInstallment || 0;
+                    const groupIdentifier = activeGroup.code || activeGroup.name || activeGroup.id;
+
+                    // Dynamically check if customer has paid their installment for this group from ledger
+                    const ledger = JSON.parse(localStorage.getItem('ledgerTransactions') || '[]');
+                    const paidForThisGroup = ledger
+                      .filter((t: any) => 
+                        (t.type === 'CREDIT' || t.category === 'INSTALLMENT') &&
+                        (t.customerId === custTargetId || t.customerId === c.id || t.reference?.includes(custTargetId) || t.description?.includes(custTargetId)) &&
+                        ((t.reference || '').toLowerCase().includes((groupIdentifier || '').toLowerCase()) || 
+                         (t.description || '').toLowerCase().includes((groupIdentifier || '').toLowerCase()) ||
+                         (t.groupId && t.groupId.toLowerCase().includes((groupIdentifier || '').toLowerCase())))
+                      )
+                      .reduce((sum: number, t: any) => sum + (Number(t.amount) || 0), 0);
+
+                    const isChitPaid = chit?.paymentStatus === 'PAID' || (monthlyDue > 0 && paidForThisGroup >= monthlyDue);
+
                     return (
                       <tr key={c.id} className="hover:bg-slate-50/70 transition-colors">
                         <td className="px-5 py-3">
-                          <div className="font-bold text-slate-900 text-xs">{c.name}</div>
-                          <div className="text-[10px] text-slate-400 font-mono">ID: {c.id}</div>
+                          <button
+                            onClick={() => navigate(`/admin/customers/${custTargetId}?group=${encodeURIComponent(groupIdentifier)}`)}
+                            className="text-left group/cust hover:opacity-90 focus:outline-none"
+                            title="Click to view customer profile for this group"
+                          >
+                            <div className="font-bold text-slate-900 text-xs group-hover/cust:text-[#9a6d25] group-hover/cust:underline transition-colors flex items-center gap-1.5">
+                              <span>{c.name}</span>
+                            </div>
+                            <div className="text-[10px] text-slate-400 font-mono group-hover/cust:text-slate-600">ID: {c.id}</div>
+                          </button>
                         </td>
                         <td className="px-5 py-3 text-xs font-medium text-slate-700">
                           {c.mobile || c.phone || '—'}
@@ -1051,12 +1078,31 @@ export const AdminDashboard = () => {
                           {formatCurrency(chit?.chitValue || 0)}
                         </td>
                         <td className="px-5 py-3">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${chit?.paymentStatus === 'PAID'
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${isChitPaid
                               ? 'bg-emerald-100 text-emerald-800'
                               : 'bg-amber-100 text-amber-800'
                             }`}>
-                            {chit?.paymentStatus === 'PAID' ? 'PAID' : 'DUE'}
+                            {isChitPaid ? 'PAID' : 'DUE'}
                           </span>
+                        </td>
+                        <td className="px-5 py-3 text-center">
+                          <div className="flex items-center justify-center gap-2">
+                            <button
+                              onClick={() => navigate(`/admin/customers/${custTargetId}?action=receive-payment&chitGroup=${encodeURIComponent(groupIdentifier)}&amount=${monthlyDue}`)}
+                              className="px-2.5 py-1.5 bg-[#9a6d25] hover:bg-[#855c1b] text-white text-xs font-bold rounded-lg shadow-2xs inline-flex items-center gap-1 transition-all active:scale-95"
+                              title="Receive payment for this customer in this group"
+                            >
+                              <span>Receive Payment</span>
+                            </button>
+                            <button
+                              onClick={() => navigate(`/admin/customers/${custTargetId}?group=${encodeURIComponent(groupIdentifier)}`)}
+                              className="px-2.5 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold rounded-lg shadow-2xs inline-flex items-center gap-1 transition-colors"
+                              title="View customer profile focused on this group"
+                            >
+                              <span>Profile</span>
+                              <span className="text-[10px]">&rarr;</span>
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );

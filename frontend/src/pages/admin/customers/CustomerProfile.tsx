@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { Button } from '../../../components/common/Button';
 import { formatCurrency, formatDate } from '../../../utils/format';
 import { 
   User, Phone, MapPin, Building, 
   Wallet, FileText, AlertCircle, CheckCircle2,
   Calendar, Mail, CreditCard, Activity, ArrowUpRight, ArrowDownRight, Clock, Layers, X, Users, BookOpen, Download, Award,
-  Eye, ExternalLink, Printer, Landmark
+  Eye, ExternalLink, Printer, Landmark, Filter
 } from 'lucide-react';
 import { cn } from '../../../utils/cn';
 import { fetchClient } from '../../../api/client';
@@ -21,9 +21,14 @@ import { isMockGroup } from '../../../utils/cleanMockData';
 
 export const CustomerProfile = () => {
   const { id } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState('overview');
   const [customer, setCustomer] = useState<any>(null);
   const [referralCount, setReferralCount] = useState(0);
+
+  // Group Filter Scope: When arrived from a specific chit group (e.g. JJ-2), focus only on that group by default
+  const initialGroup = searchParams.get('chitGroup') || searchParams.get('group') || searchParams.get('groupId') || '';
+  const [selectedGroupScope, setSelectedGroupScope] = useState<string>(initialGroup);
 
   // Receive Payment Modal States
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
@@ -256,6 +261,45 @@ export const CustomerProfile = () => {
           activeChits: resolvedChits.length,
           withdrawnAmount: ledgerTotalWithdrawn
         });
+      } else {
+        // 3. Fallback: check chitGroupMemberships or mockChitGroups if customer was enrolled directly into a group
+        const memberships = JSON.parse(localStorage.getItem('chitGroupMemberships') || '[]');
+        const mem = memberships.find((m: any) => m.customerId === id || (id.replace(/\D/g, '') && (m.mobile || m.phone || '').replace(/\D/g, '') === id.replace(/\D/g, '')));
+        const groups = JSON.parse(localStorage.getItem('mockChitGroups') || '[]');
+        let groupMem: any = null;
+        groups.forEach((g: any) => {
+          if (Array.isArray(g.enrolledMembers)) {
+            const foundM = g.enrolledMembers.find((m: any) => m.customerId === id || (id.replace(/\D/g, '') && (m.mobile || m.phone || '').replace(/\D/g, '') === id.replace(/\D/g, '')));
+            if (foundM) groupMem = { ...foundM, groupId: g.code || g.id, groupName: g.name };
+          }
+        });
+
+        const fallbackData = mem || groupMem;
+        if (fallbackData) {
+          const fallbackCust = {
+            id: fallbackData.customerId || id,
+            customerCode: fallbackData.customerId || id,
+            name: fallbackData.customerName || fallbackData.name || 'Customer',
+            mobile: fallbackData.mobile || fallbackData.phone || '',
+            phone: fallbackData.mobile || fallbackData.phone || '',
+            address: fallbackData.address || '—',
+            aadhar: fallbackData.aadhar || '—',
+            pan: fallbackData.pan || '—',
+            branch: 'Head Office',
+            agent: 'System Admin',
+            totalPaid: ledgerTotalPaid,
+            pending: fallbackData.pending || 0,
+            status: 'ACTIVE',
+            chits: []
+          };
+          const resolvedChits = resolveChitsForCustomer(fallbackCust, id);
+          setCustomer({
+            ...fallbackCust,
+            chits: resolvedChits,
+            activeChits: resolvedChits.length,
+            withdrawnAmount: ledgerTotalWithdrawn
+          });
+        }
       }
     };
 
@@ -267,6 +311,24 @@ export const CustomerProfile = () => {
       clearInterval(interval);
     };
   }, [id]);
+
+  // Handle URL query action to automatically open Receive Payment modal
+  useEffect(() => {
+    const action = searchParams.get('action');
+    const pay = searchParams.get('pay');
+    const groupParam = searchParams.get('chitGroup') || searchParams.get('groupId');
+    const amountParam = searchParams.get('amount');
+
+    if (action === 'receive-payment' || pay === 'true' || searchParams.has('receivePayment')) {
+      setIsPaymentModalOpen(true);
+      if (groupParam) {
+        setSelectedChitForPayment(groupParam);
+      }
+      if (amountParam) {
+        setPaymentAmount(amountParam);
+      }
+    }
+  }, [searchParams, customer]);
 
   // Open Disbursal / Withdrawal Modal
   const openWithdrawModal = (chit: any) => {
@@ -407,22 +469,78 @@ export const CustomerProfile = () => {
     };
     localStorage.setItem('ledgerTransactions', JSON.stringify([newTxn, ...ledger]));
 
-    // Update customer totalPaid
+    // Update customer totalPaid and mark chit as PAID if paying for group
+    const targetGroupId = selectedChitForPayment || selectedGroupScope;
     const newTotalPaid = (customer.totalPaid || 0) + amount;
     const newPending = Math.max(0, (customer.pending || 0) - amount);
+
+    const updatedChits = (customer.chits || []).map((ch: any) => {
+      if (
+        !targetGroupId ||
+        targetGroupId === 'ALL' ||
+        ch.groupId === targetGroupId ||
+        ch.groupName === targetGroupId
+      ) {
+        return {
+          ...ch,
+          paymentStatus: 'PAID'
+        };
+      }
+      return ch;
+    });
+
     const updatedCustomer = {
       ...customer,
       totalPaid: newTotalPaid,
-      pending: newPending
+      pending: newPending,
+      chits: updatedChits
     };
     
     setCustomer(updatedCustomer);
     
+    // Update mockCustomers
     const saved = localStorage.getItem('mockCustomers');
     if (saved) {
       const parsed = JSON.parse(saved);
-      const newCustomers = parsed.map((c: any) => c.id === customer.id ? updatedCustomer : c);
+      const newCustomers = parsed.map((c: any) => 
+        (c.id === customer.id || c.customerCode === customer.customerCode || c.mongoId === customer.mongoId) 
+          ? updatedCustomer 
+          : c
+      );
       localStorage.setItem('mockCustomers', JSON.stringify(newCustomers));
+    }
+
+    // Update chitGroupMemberships
+    if (targetGroupId && targetGroupId !== 'ALL') {
+      const memberships = JSON.parse(localStorage.getItem('chitGroupMemberships') || '[]');
+      const updatedMemberships = memberships.map((m: any) => {
+        if (
+          (m.customerId === displayId || m.customerId === customer?.customerCode || m.customerId === customer?.id) &&
+          (m.groupId === targetGroupId || m.groupName === targetGroupId)
+        ) {
+          return { ...m, paymentStatus: 'PAID' };
+        }
+        return m;
+      });
+      localStorage.setItem('chitGroupMemberships', JSON.stringify(updatedMemberships));
+
+      // Update mockChitGroups enrolledMembers
+      const groups = JSON.parse(localStorage.getItem('mockChitGroups') || '[]');
+      const updatedGroups = groups.map((g: any) => {
+        if (g.code === targetGroupId || g.id === targetGroupId || g.name === targetGroupId) {
+          if (Array.isArray(g.enrolledMembers)) {
+            const updatedEnrolled = g.enrolledMembers.map((em: any) => {
+              if (em.customerId === displayId || em.customerId === customer?.customerCode || em.customerId === customer?.id) {
+                return { ...em, paymentStatus: 'PAID' };
+              }
+              return em;
+            });
+            return { ...g, enrolledMembers: updatedEnrolled };
+          }
+        }
+        return g;
+      });
+      localStorage.setItem('mockChitGroups', JSON.stringify(updatedGroups));
     }
 
     // Sync to backend MongoDB
@@ -432,7 +550,8 @@ export const CustomerProfile = () => {
         method: 'PATCH',
         body: JSON.stringify({
           totalPaid: newTotalPaid,
-          pending: newPending
+          pending: newPending,
+          chits: updatedChits
         })
       }).catch(err => console.warn('Could not sync payment to MongoDB:', err));
     }
@@ -452,7 +571,6 @@ export const CustomerProfile = () => {
   const displayAadhar = customer?.aadhar || '—';
   const displayPan = customer?.pan || '—';
 
-  const displayPending = customer?.pending || 0;
   const displayActiveChits = customer?.chits?.length || customer?.activeChits || 0;
   const displayAgent = customer?.agent || 'System Admin';
   
@@ -472,8 +590,17 @@ export const CustomerProfile = () => {
     });
   };
 
-  // Real transactions from ledger for recent activity
-  const recentActivity = (() => {
+  // Helper to test if a transaction belongs to the scoped group
+  const matchesGroupScope = (t: any, groupKey: string) => {
+    if (!groupKey || groupKey === 'ALL') return true;
+    const ref = (t.reference || t.desc || '').toLowerCase();
+    const grp = groupKey.toLowerCase();
+    const desc = (t.description || t.title || '').toLowerCase();
+    return ref.includes(grp) || desc.includes(grp) || (t.groupId && t.groupId.toLowerCase().includes(grp));
+  };
+
+  // Real transactions from ledger for recent activity (overall)
+  const allRecentActivity = (() => {
     const ledger = JSON.parse(localStorage.getItem('ledgerTransactions') || '[]');
     const paymentReqs = JSON.parse(localStorage.getItem('paymentRequests') || '[]');
     return ledger.filter((t: any) => 
@@ -491,20 +618,62 @@ export const CustomerProfile = () => {
         desc: t.reference || 'Ledger Entry',
         date: new Date(t.date),
         type: t.type === 'CREDIT' ? 'credit' : 'debit',
-        proofImg: proofImg
+        proofImg: proofImg,
+        rawTxn: t
       };
     });
   })();
 
-  // Direct calculation of verified total paid & total withdrawn from ledger and state
-  const ledgerTotalPaid = recentActivity.filter((a: any) => a.type === 'credit').reduce((s: number, a: any) => s + (Number(a.amount) || 0), 0);
-  const displayTotalPaid = Math.max(Number(customer?.totalPaid || 0), ledgerTotalPaid);
+  // Filtered transactions when a particular group is scoped
+  const recentActivity = selectedGroupScope && selectedGroupScope !== 'ALL'
+    ? allRecentActivity.filter((a: any) => matchesGroupScope(a.rawTxn, selectedGroupScope))
+    : allRecentActivity;
 
-  const ledgerTotalWithdrawn = recentActivity.filter((a: any) => a.type === 'debit').reduce((s: number, a: any) => s + (Number(a.amount) || 0), 0);
-  const chitsWithdrawnSum = Array.isArray(customer?.chits) 
-    ? customer.chits.filter((c: any) => c.isWithdrawn).reduce((s: number, c: any) => s + (Number(c.withdrawnAmount) || 0), 0)
-    : 0;
-  const displayTotalWithdrawn = Math.max(Number(customer?.withdrawnAmount || 0), chitsWithdrawnSum, ledgerTotalWithdrawn);
+  // Group-scoped and overall calculations
+  const scopedChits = (selectedGroupScope && selectedGroupScope !== 'ALL')
+    ? (customer?.chits || []).filter((ch: any) => 
+        ch.groupId === selectedGroupScope || 
+        ch.groupName === selectedGroupScope || 
+        (ch.groupId && ch.groupId.toLowerCase().includes(selectedGroupScope.toLowerCase())) ||
+        (ch.groupName && ch.groupName.toLowerCase().includes(selectedGroupScope.toLowerCase()))
+      )
+    : (customer?.chits || []);
+
+  // Total Paid: scoped vs overall
+  const scopedLedgerTotalPaid = recentActivity.filter((a: any) => a.type === 'credit').reduce((s: number, a: any) => s + (Number(a.amount) || 0), 0);
+  const overallLedgerTotalPaid = allRecentActivity.filter((a: any) => a.type === 'credit').reduce((s: number, a: any) => s + (Number(a.amount) || 0), 0);
+  const displayTotalPaid = (selectedGroupScope && selectedGroupScope !== 'ALL')
+    ? scopedLedgerTotalPaid
+    : Math.max(Number(customer?.totalPaid || 0), overallLedgerTotalPaid);
+
+  // Total Withdrawn: scoped vs overall
+  const scopedLedgerTotalWithdrawn = recentActivity.filter((a: any) => a.type === 'debit').reduce((s: number, a: any) => s + (Number(a.amount) || 0), 0);
+  const scopedChitsWithdrawnSum = scopedChits.filter((c: any) => c.isWithdrawn).reduce((s: number, c: any) => s + (Number(c.withdrawnAmount) || 0), 0);
+  const displayTotalWithdrawn = (selectedGroupScope && selectedGroupScope !== 'ALL')
+    ? Math.max(scopedChitsWithdrawnSum, scopedLedgerTotalWithdrawn)
+    : Math.max(
+        Number(customer?.withdrawnAmount || 0),
+        (customer?.chits || []).filter((c: any) => c.isWithdrawn).reduce((s: number, c: any) => s + (Number(c.withdrawnAmount) || 0), 0),
+        allRecentActivity.filter((a: any) => a.type === 'debit').reduce((s: number, a: any) => s + (Number(a.amount) || 0), 0)
+      );
+
+  // Pending Dues: scoped vs overall
+  // Calculate dynamic pending by comparing due installment against verified payments received
+  const scopedPending = (() => {
+    if (selectedGroupScope && selectedGroupScope !== 'ALL') {
+      const totalExpectedDue = scopedChits.reduce((sum: number, ch: any) => sum + Number(ch.monthlyInstallment || 5000), 0);
+      const remainingDue = Math.max(0, totalExpectedDue - scopedLedgerTotalPaid);
+      return remainingDue;
+    }
+    const totalExpectedDueAll = (customer?.chits || []).reduce((sum: number, ch: any) => sum + Number(ch.monthlyInstallment || 5000), 0);
+    const overallRemaining = Math.max(0, totalExpectedDueAll - overallLedgerTotalPaid);
+    return customer?.pending !== undefined ? Math.min(customer.pending, overallRemaining) : overallRemaining;
+  })();
+
+
+  const displayActiveChitsCount = (selectedGroupScope && selectedGroupScope !== 'ALL')
+    ? scopedChits.length
+    : displayActiveChits;
 
   const tabs = [
     { id: 'overview', name: 'Overview' },
@@ -665,19 +834,110 @@ export const CustomerProfile = () => {
       {/* Right Content Area */}
       <div className="flex-1 space-y-6">
         {/* Breadcrumb & Action */}
-        <div className="flex items-center justify-between text-sm text-neutral-500 bg-white px-5 py-4 rounded-xl shadow-sm border border-neutral-200">
-          <div>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-sm text-neutral-500 bg-white px-5 py-4 rounded-xl shadow-sm border border-neutral-200">
+          <div className="flex items-center gap-2 flex-wrap">
             <Link to="/admin/customers" className="hover:text-primary-900 transition-colors">Customers</Link>
-            <span className="mx-2">/</span>
+            <span className="mx-1">/</span>
             <span className="text-neutral-900 font-medium">{displayName}</span>
+            {selectedGroupScope && selectedGroupScope !== 'ALL' && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                <Layers className="w-3.5 h-3.5 text-amber-700" />
+                <span>Group: {selectedGroupScope}</span>
+              </span>
+            )}
           </div>
-          <button 
-            className="bg-primary-600 text-white px-4 py-1.5 rounded-lg font-semibold hover:bg-primary-700 transition-colors"
-            onClick={() => setIsPaymentModalOpen(true)}
-          >
-            Receive Payment
-          </button>
+          <div className="flex items-center gap-2">
+            <button 
+              className="bg-primary-600 text-white px-4 py-1.5 rounded-lg font-semibold hover:bg-primary-700 transition-colors"
+              onClick={() => {
+                if (selectedGroupScope && selectedGroupScope !== 'ALL') {
+                  setSelectedChitForPayment(selectedGroupScope);
+                  const matchedChit = customer?.chits?.find((c: any) => c.groupId === selectedGroupScope || c.groupName === selectedGroupScope);
+                  if (matchedChit?.monthlyInstallment) {
+                    setPaymentAmount(String(matchedChit.monthlyInstallment));
+                  }
+                }
+                setIsPaymentModalOpen(true);
+              }}
+            >
+              Receive Payment
+            </button>
+          </div>
         </div>
+
+        {/* Group Context Switcher / Notice Banner */}
+        {customer?.chits && customer.chits.length > 0 && (
+          <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 bg-amber-50 text-amber-800 rounded-lg shrink-0">
+                <Filter className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-neutral-800 uppercase tracking-wider">
+                  {selectedGroupScope && selectedGroupScope !== 'ALL' ? (
+                    <span>Viewing Data For Group: <span className="text-amber-800 font-extrabold">{selectedGroupScope}</span></span>
+                  ) : (
+                    <span>Viewing <span className="text-primary-900 font-extrabold">Overall Customer Profile</span> (All Groups)</span>
+                  )}
+                </p>
+                <p className="text-[11px] text-neutral-500">
+                  {selectedGroupScope && selectedGroupScope !== 'ALL' 
+                    ? `Showing passbook, payments, dues & transactions for ${selectedGroupScope} only to prevent payment confusions.`
+                    : 'Showing aggregated summary of all enrollments, passbooks, and total payments across all groups.'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0 self-stretch md:self-auto">
+              <button
+                onClick={() => {
+                  setSelectedGroupScope('ALL');
+                  setSearchParams(prev => {
+                    const next = new URLSearchParams(prev);
+                    next.delete('group');
+                    next.delete('chitGroup');
+                    next.delete('groupId');
+                    return next;
+                  });
+                }}
+                className={cn(
+                  "px-3 py-1.5 rounded-lg text-xs font-bold transition-all border",
+                  (!selectedGroupScope || selectedGroupScope === 'ALL')
+                    ? "bg-primary-900 text-white border-primary-900 shadow-2xs"
+                    : "bg-neutral-50 hover:bg-neutral-100 text-neutral-700 border-neutral-200"
+                )}
+              >
+                Overall Profile (All)
+              </button>
+
+              {customer.chits.map((ch: any) => {
+                const grpId = ch.groupId || ch.groupName;
+                const isSelected = selectedGroupScope === grpId;
+                return (
+                  <button
+                    key={grpId}
+                    onClick={() => {
+                      setSelectedGroupScope(grpId);
+                      setSearchParams(prev => {
+                        const next = new URLSearchParams(prev);
+                        next.set('group', grpId);
+                        return next;
+                      });
+                    }}
+                    className={cn(
+                      "px-3 py-1.5 rounded-lg text-xs font-bold transition-all border flex items-center gap-1",
+                      isSelected
+                        ? "bg-amber-600 text-white border-amber-600 shadow-2xs"
+                        : "bg-neutral-50 hover:bg-neutral-100 text-neutral-700 border-neutral-200"
+                    )}
+                  >
+                    <span>{grpId}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Custom Tabs */}
         <div className="bg-white p-1.5 rounded-xl shadow-sm border border-neutral-200 inline-flex w-full overflow-x-auto scrollbar-none">
@@ -721,8 +981,14 @@ export const CustomerProfile = () => {
                     <Activity className="w-5 h-5" />
                   </div>
                 </div>
-                <p className="text-xs font-bold text-neutral-500 uppercase tracking-wider mb-1">Active Chits</p>
-                <h4 className="text-2xl font-bold text-neutral-900">{displayActiveChits}</h4>
+                <p className="text-xs font-bold text-neutral-500 uppercase tracking-wider mb-1">
+                  {selectedGroupScope && selectedGroupScope !== 'ALL' ? 'Group Scheme' : 'Active Chits'}
+                </p>
+                <h4 className="text-2xl font-bold text-neutral-900">
+                  {selectedGroupScope && selectedGroupScope !== 'ALL' 
+                    ? (scopedChits[0]?.scheme || 'Chit Plan') 
+                    : displayActiveChitsCount}
+                </h4>
               </div>
 
               <div className="bg-white p-5 rounded-xl shadow-sm border border-neutral-200 relative overflow-hidden group">
@@ -732,21 +998,29 @@ export const CustomerProfile = () => {
                     <Wallet className="w-5 h-5" />
                   </div>
                 </div>
-                <p className="text-xs font-bold text-neutral-500 uppercase tracking-wider mb-1">Total Paid</p>
+                <p className="text-xs font-bold text-neutral-500 uppercase tracking-wider mb-1">
+                  {selectedGroupScope && selectedGroupScope !== 'ALL' ? `${selectedGroupScope} Paid` : 'Total Paid'}
+                </p>
                 <h4 className="text-2xl font-bold text-neutral-900">{formatCurrency(displayTotalPaid)}</h4>
               </div>
 
-              <div className={cn("bg-white p-5 rounded-xl shadow-sm border relative overflow-hidden group", displayPending > 0 ? "border-danger-200" : "border-neutral-200")}>
-                <div className={cn("absolute right-0 top-0 w-20 h-20 bg-gradient-to-bl to-transparent opacity-50 rounded-bl-full transform group-hover:scale-110 transition-transform duration-500", displayPending > 0 ? "from-danger-100" : "from-neutral-100")}></div>
+              <div className={cn("bg-white p-5 rounded-xl shadow-sm border relative overflow-hidden group transition-all", scopedPending > 0 ? "border-danger-200" : "border-emerald-200")}>
+                <div className={cn("absolute right-0 top-0 w-20 h-20 bg-gradient-to-bl to-transparent opacity-50 rounded-bl-full transform group-hover:scale-110 transition-transform duration-500", scopedPending > 0 ? "from-danger-100" : "from-emerald-50")}></div>
                 <div className="flex items-center justify-between mb-3">
-                  <div className={cn("p-2 rounded-lg", displayPending > 0 ? "bg-danger-light text-danger" : "bg-neutral-100 text-neutral-400")}>
-                    <AlertCircle className="w-5 h-5" />
+                  <div className={cn("p-2 rounded-lg", scopedPending > 0 ? "bg-danger-light text-danger" : "bg-emerald-50 text-emerald-600")}>
+                    {scopedPending > 0 ? <AlertCircle className="w-5 h-5" /> : <CheckCircle2 className="w-5 h-5" />}
                   </div>
-                  {displayPending > 0 && <span className="text-[10px] font-bold bg-danger-light text-danger px-2 py-0.5 rounded-full border border-danger-200">Action Req</span>}
+                  {scopedPending > 0 ? (
+                    <span className="text-[10px] font-bold bg-danger-light text-danger px-2 py-0.5 rounded-full border border-danger-200">Due</span>
+                  ) : (
+                    <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full border border-emerald-200">All Paid</span>
+                  )}
                 </div>
-                <p className="text-xs font-bold text-neutral-500 uppercase tracking-wider mb-1">Total Pending</p>
-                <h4 className={cn("text-2xl font-bold", displayPending > 0 ? "text-danger" : "text-neutral-900")}>
-                  {formatCurrency(displayPending)}
+                <p className="text-xs font-bold text-neutral-500 uppercase tracking-wider mb-1">
+                  {selectedGroupScope && selectedGroupScope !== 'ALL' ? `${selectedGroupScope} Pending` : 'Total Pending'}
+                </p>
+                <h4 className={cn("text-2xl font-bold", scopedPending > 0 ? "text-danger" : "text-emerald-700")}>
+                  {formatCurrency(scopedPending)}
                 </h4>
               </div>
 
@@ -760,7 +1034,9 @@ export const CustomerProfile = () => {
                     <span className="text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full border border-amber-300">Prize Claimed</span>
                   )}
                 </div>
-                <p className="text-xs font-bold text-amber-700 uppercase tracking-wider mb-1">Total Withdrawn</p>
+                <p className="text-xs font-bold text-amber-700 uppercase tracking-wider mb-1">
+                  {selectedGroupScope && selectedGroupScope !== 'ALL' ? `${selectedGroupScope} Withdrawn` : 'Total Withdrawn'}
+                </p>
                 <h4 className="text-2xl font-bold text-amber-900">{formatCurrency(displayTotalWithdrawn)}</h4>
               </div>
 
@@ -869,13 +1145,39 @@ export const CustomerProfile = () => {
         {/* Chit Groups Tab */}
         {activeTab === 'chits' && (
           <div className="bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden">
-            <div className="px-6 py-5 border-b border-neutral-200">
-              <h3 className="text-lg font-bold text-neutral-900">Active Chit Groups</h3>
+            <div className="px-6 py-5 border-b border-neutral-200 flex justify-between items-center">
+              <div>
+                <h3 className="text-lg font-bold text-neutral-900">
+                  {selectedGroupScope && selectedGroupScope !== 'ALL' ? `Chit Group: ${selectedGroupScope}` : 'Active Chit Groups'}
+                </h3>
+                <p className="text-xs text-neutral-500 mt-0.5">
+                  {selectedGroupScope && selectedGroupScope !== 'ALL'
+                    ? `Displaying enrollment details for ${selectedGroupScope}`
+                    : 'Displaying all enrolled chit groups for this customer'}
+                </p>
+              </div>
+              {selectedGroupScope && selectedGroupScope !== 'ALL' && (
+                <button
+                  onClick={() => {
+                    setSelectedGroupScope('ALL');
+                    setSearchParams(prev => {
+                      const next = new URLSearchParams(prev);
+                      next.delete('group');
+                      next.delete('chitGroup');
+                      next.delete('groupId');
+                      return next;
+                    });
+                  }}
+                  className="text-xs font-bold text-primary-700 hover:text-primary-900 bg-primary-50 px-3 py-1.5 rounded-lg border border-primary-200"
+                >
+                  Show All Groups
+                </button>
+              )}
             </div>
             
-            {customer?.chits && customer.chits.length > 0 ? (
+            {scopedChits.length > 0 ? (
               <div className="p-6 grid grid-cols-1 gap-4">
-                {customer.chits.map((chit: any, i: number) => (
+                {scopedChits.map((chit: any, i: number) => (
                   <div key={i} className="flex flex-col md:flex-row justify-between items-center bg-slate-50 border border-slate-200 rounded-xl p-5 shadow-sm">
                     <div className="flex items-center mb-4 md:mb-0">
                       <div className="w-12 h-12 bg-primary-100 text-primary-700 rounded-xl flex items-center justify-center mr-4 shrink-0">
@@ -972,8 +1274,12 @@ export const CustomerProfile = () => {
                 <div className="w-16 h-16 bg-neutral-50 rounded-full flex items-center justify-center mb-4">
                   <Layers className="w-8 h-8 text-neutral-300" />
                 </div>
-                <h4 className="text-neutral-900 font-bold mb-1">No Chit Groups</h4>
-                <p className="text-sm text-neutral-500 max-w-sm mx-auto">This customer is not currently mapped to any chit groups.</p>
+                <h4 className="text-neutral-900 font-bold mb-1">No Chit Groups Found</h4>
+                <p className="text-sm text-neutral-500 max-w-sm mx-auto">
+                  {selectedGroupScope && selectedGroupScope !== 'ALL'
+                    ? `No enrollment found matching group "${selectedGroupScope}".`
+                    : 'This customer is not currently mapped to any chit groups.'}
+                </p>
               </div>
             )}
           </div>
@@ -983,7 +1289,33 @@ export const CustomerProfile = () => {
         {activeTab === 'payments' && (
           <div className="bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden">
             <div className="p-6 border-b border-neutral-200 flex justify-between items-center">
-              <h3 className="text-lg font-bold text-neutral-900">Payment History</h3>
+              <div>
+                <h3 className="text-lg font-bold text-neutral-900">
+                  {selectedGroupScope && selectedGroupScope !== 'ALL' ? `Payment History (${selectedGroupScope})` : 'Payment History'}
+                </h3>
+                <p className="text-xs text-neutral-500 mt-0.5">
+                  {selectedGroupScope && selectedGroupScope !== 'ALL'
+                    ? `Showing verified receipts and payments for group ${selectedGroupScope} only.`
+                    : 'Showing verified payments across all groups.'}
+                </p>
+              </div>
+              {selectedGroupScope && selectedGroupScope !== 'ALL' && (
+                <button
+                  onClick={() => {
+                    setSelectedGroupScope('ALL');
+                    setSearchParams(prev => {
+                      const next = new URLSearchParams(prev);
+                      next.delete('group');
+                      next.delete('chitGroup');
+                      next.delete('groupId');
+                      return next;
+                    });
+                  }}
+                  className="text-xs font-bold text-primary-700 hover:text-primary-900 bg-primary-50 px-3 py-1.5 rounded-lg border border-primary-200"
+                >
+                  View All Groups History
+                </button>
+              )}
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left min-w-full">
@@ -1000,16 +1332,24 @@ export const CustomerProfile = () => {
               <tbody className="divide-y divide-neutral-100 bg-white">
                 {(() => {
                   const ledger = JSON.parse(localStorage.getItem('ledgerTransactions') || '[]');
-                  const customerTxns = ledger.filter((t: any) => 
+                  let customerTxns = ledger.filter((t: any) => 
                     t.reference?.includes(displayId) || t.description?.includes(displayId)
                   );
+
+                  if (selectedGroupScope && selectedGroupScope !== 'ALL') {
+                    customerTxns = customerTxns.filter((t: any) => matchesGroupScope(t, selectedGroupScope));
+                  }
 
                   if (customerTxns.length === 0) {
                     return (
                       <tr>
                         <td colSpan={6} className="py-12 text-center text-neutral-400">
                           <Wallet className="w-8 h-8 mx-auto mb-3 text-neutral-300" />
-                          <p>No payments recorded for this customer.</p>
+                          <p>
+                            {selectedGroupScope && selectedGroupScope !== 'ALL'
+                              ? `No payments recorded for group "${selectedGroupScope}".`
+                              : 'No payments recorded for this customer.'}
+                          </p>
                         </td>
                       </tr>
                     );
@@ -1080,12 +1420,18 @@ export const CustomerProfile = () => {
           <div className="bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden">
             <div className="p-6 border-b border-neutral-200 bg-primary-900 text-white rounded-t-xl flex justify-between items-center">
               <div>
-                <h3 className="text-xl font-bold">Digital Passbook</h3>
-                <p className="text-primary-200 text-sm opacity-90 mt-1">Official statement of account</p>
+                <h3 className="text-xl font-bold">
+                  {selectedGroupScope && selectedGroupScope !== 'ALL' ? `Digital Passbook (${selectedGroupScope})` : 'Digital Passbook'}
+                </h3>
+                <p className="text-primary-200 text-sm opacity-90 mt-1">
+                  {selectedGroupScope && selectedGroupScope !== 'ALL'
+                    ? `Official statement of account for group ${selectedGroupScope}`
+                    : 'Official statement of account (Overall)'}
+                </p>
               </div>
               <div className="text-right">
                 <p className="text-sm text-primary-200 mb-1">Current Balance</p>
-                <p className="text-2xl font-bold text-white">{formatCurrency(displayTotalPaid - displayPending)}</p>
+                <p className="text-2xl font-bold text-white">{formatCurrency(displayTotalPaid - scopedPending)}</p>
               </div>
             </div>
             
@@ -1106,16 +1452,24 @@ export const CustomerProfile = () => {
                   {(() => {
                     const ledger = JSON.parse(localStorage.getItem('ledgerTransactions') || '[]');
                     // Sort ledger from oldest to newest to calculate running balance
-                    const customerTxns = ledger.filter((t: any) => 
+                    let customerTxns = ledger.filter((t: any) => 
                       t.reference?.includes(displayId) || t.description?.includes(displayId)
                     ).sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+                    if (selectedGroupScope && selectedGroupScope !== 'ALL') {
+                      customerTxns = customerTxns.filter((t: any) => matchesGroupScope(t, selectedGroupScope));
+                    }
 
                     if (customerTxns.length === 0) {
                       return (
                         <tr>
                           <td colSpan={7} className="py-16 text-center text-neutral-400">
                             <BookOpen className="w-10 h-10 mx-auto mb-3 text-neutral-300" />
-                            <p className="font-medium text-neutral-500">No transactions recorded yet.</p>
+                            <p className="font-medium text-neutral-500">
+                              {selectedGroupScope && selectedGroupScope !== 'ALL'
+                                ? `No passbook entries recorded for group "${selectedGroupScope}".`
+                                : 'No transactions recorded yet.'}
+                            </p>
                           </td>
                         </tr>
                       );
