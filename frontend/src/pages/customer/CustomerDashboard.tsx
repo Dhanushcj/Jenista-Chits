@@ -9,6 +9,7 @@ import { AuctionPlanSchedule } from '../../components/customer/AuctionPlanSchedu
 import { RegularPlanSchedule } from '../../components/customer/RegularPlanSchedule';
 import { resolveBankForPayment, generateUpiQrBadge, getStoredBankAccounts, type BankAccount } from '../../utils/bankAccountsData';
 import { isMockGroup } from '../../utils/cleanMockData';
+import { savePaymentRequest, onPaymentSync, syncPaymentRequestsWithBackend, type PaymentRequest } from '../../utils/paymentRequestsData';
 
 export const CustomerDashboard = () => {
   const { user, logout } = useAuth();
@@ -165,8 +166,8 @@ export const CustomerDashboard = () => {
 
   // Sync Payment Requests & Withdrawal Requests for live status
   useEffect(() => {
-    const checkRequests = () => {
-      const allReqs = JSON.parse(localStorage.getItem('paymentRequests') || '[]');
+    const checkRequests = async () => {
+      const allReqs = await syncPaymentRequestsWithBackend();
       const userReqs = allReqs.filter((r: any) => r.customerId === user?.id || (user?.phone && r.mobile === user?.phone));
       setPendingRequests(userReqs);
 
@@ -175,10 +176,10 @@ export const CustomerDashboard = () => {
       setPendingWithdrawals(userWReqs);
     };
     checkRequests();
-    window.addEventListener('storage', checkRequests);
-    const t = setInterval(checkRequests, 4000);
+    const unsub = onPaymentSync(checkRequests);
+    const t = setInterval(checkRequests, 3000);
     return () => {
-      window.removeEventListener('storage', checkRequests);
+      unsub();
       clearInterval(t);
     };
   }, [user]);
@@ -217,19 +218,18 @@ export const CustomerDashboard = () => {
     reader.readAsDataURL(file);
   };
 
-  const handleSubmitPayment = (e: React.FormEvent) => {
+  const handleSubmitPayment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (payMode !== 'Cash' && !payRefNo.trim()) {
       alert('Please enter your Transaction / UTR / Reference ID for verification.');
       return;
     }
-    const existingReqs = JSON.parse(localStorage.getItem('paymentRequests') || '[]');
     const userPhone = user?.phone || user?.mobile || (user as any)?.phone || '';
     const activeCompanyBanks = getStoredBankAccounts().filter(b => b.status === 'ACTIVE');
     const resolvedBank = resolveBankForPayment(user?.id, paymentModalChit?.groupId, paymentModalChit?.groupName).bank || activeCompanyBanks[0];
     const generatedCashRef = `CASH-${Date.now().toString().slice(-6)}`;
     
-    const newReq = {
+    const newReq: PaymentRequest = {
       id: `PAY-${Date.now().toString().slice(-6)}`,
       customerId: user?.id || 'CUST',
       customerName: user?.name || 'Customer',
@@ -251,9 +251,9 @@ export const CustomerDashboard = () => {
         : `Paid via ${payMode} to ${resolvedBank?.bankName || 'Company Bank'}`
     };
 
-    const updatedReqs = [newReq, ...existingReqs];
-    localStorage.setItem('paymentRequests', JSON.stringify(updatedReqs));
-    window.dispatchEvent(new Event('storage'));
+    setPaySubmitting(true);
+    await savePaymentRequest(newReq);
+    setPendingRequests(prev => [newReq, ...prev.filter(r => r.id !== newReq.id)]);
 
     setTimeout(() => {
       setPaySubmitting(false);

@@ -32,7 +32,8 @@ import { useAuth } from '../../store/AuthContext';
 import { StaffDashboard } from '../staff/StaffDashboard';
 import { fetchClient } from '../../api/client';
 import {
-  getStoredPaymentRequests,
+  syncPaymentRequestsWithBackend,
+  onPaymentSync,
   approvePaymentRequestAction,
   rejectPaymentRequestAction,
   isPendingPayment,
@@ -86,8 +87,8 @@ export const AdminDashboard = () => {
   const adminDisplayName = user?.name || 'Santy Y';
 
   // Load and enrich payment requests
-  const loadPaymentRequests = () => {
-    const list = getStoredPaymentRequests();
+  const loadPaymentRequests = async () => {
+    const list = await syncPaymentRequestsWithBackend();
     setPaymentRequests(list);
   };
 
@@ -513,6 +514,8 @@ export const AdminDashboard = () => {
       .catch((err) => console.log('MongoDB customers offline:', err));
 
     loadPaymentRequests();
+    const unsubPaymentSync = onPaymentSync(loadPaymentRequests);
+    const paymentPollInterval = setInterval(loadPaymentRequests, 3000);
 
     const rawHo = localStorage.getItem('staffHandovers');
     if (rawHo) {
@@ -525,6 +528,8 @@ export const AdminDashboard = () => {
 
     return () => {
       window.removeEventListener('storage', handleStorageChange);
+      unsubPaymentSync();
+      clearInterval(paymentPollInterval);
     };
   }, []);
 

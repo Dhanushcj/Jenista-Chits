@@ -18,7 +18,8 @@ import { printCashReceipt } from '../../../utils/receiptPrinter';
 import { isMockCustomer } from '../../../utils/cleanMockData';
 import type { PaymentRequest } from '../../../utils/paymentRequestsData';
 import {
-  getStoredPaymentRequests,
+  syncPaymentRequestsWithBackend,
+  onPaymentSync,
   isPendingPayment,
   approvePaymentRequestAction,
   rejectPaymentRequestAction
@@ -58,7 +59,7 @@ export const Payments = () => {
   
   // Verification states
   const [paymentRequests, setPaymentRequests] = useState<PaymentRequest[]>([]);
-  const [filterStatus, setFilterStatus] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED'>('PENDING');
+  const [filterStatus, setFilterStatus] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED'>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
   const [actionSuccessMsg, setActionSuccessMsg] = useState<string | null>(null);
@@ -73,23 +74,22 @@ export const Payments = () => {
 
 
   // Load data
-  const loadData = () => {
-    // Payment requests
-    const reqs = getStoredPaymentRequests();
+  const loadData = async () => {
+    // Payment requests (synced with backend & local)
+    const reqs = await syncPaymentRequestsWithBackend();
     setPaymentRequests(reqs);
 
     // Withdrawal requests
     const wReqs = JSON.parse(localStorage.getItem('withdrawalRequests') || '[]');
     setWithdrawalRequests(wReqs);
-
   };
 
   useEffect(() => {
     loadData();
 
-    // Listen for storage changes
-    window.addEventListener('storage', loadData);
-    const interval = setInterval(loadData, 4000);
+    // Listen for storage changes and cross-tab/channel sync
+    const unsubSync = onPaymentSync(loadData);
+    const interval = setInterval(loadData, 3000);
 
     fetchClient('/customers')
       .then((res: any) => {
@@ -120,7 +120,7 @@ export const Payments = () => {
       .catch((err: any) => console.warn('Could not sync payments customers:', err));
 
     return () => {
-      window.removeEventListener('storage', loadData);
+      unsubSync();
       clearInterval(interval);
     };
   }, []);

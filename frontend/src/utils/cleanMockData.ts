@@ -158,14 +158,12 @@ export const purgeMockData = (): void => {
       }
     }
 
-    // 6. Purge paymentRequests
+    // 6. Purge paymentRequests: only drop static hardcoded dummy IDs, never real or demo customer submissions
     const rawPayments = localStorage.getItem('paymentRequests');
     if (rawPayments) {
       const parsedPayments = JSON.parse(rawPayments);
       if (Array.isArray(parsedPayments)) {
         const cleanPayments = parsedPayments.filter((p: any) =>
-          !isMockCustomer({ id: p.customerId, name: p.customerName }) &&
-          !isMockGroup({ id: p.groupId, name: p.groupName }) &&
           !['PAY-78201', 'PAY-78202', 'PAY-78203', 'PAY-78190'].includes(p.id)
         );
         localStorage.setItem('paymentRequests', JSON.stringify(cleanPayments));

@@ -23,6 +23,47 @@ export interface PaymentRequest {
   rejectedAt?: string;
 }
 
+// Cross-tab / cross-window sync channel
+let paymentSyncChannel: BroadcastChannel | null = null;
+try {
+  if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+    paymentSyncChannel = new BroadcastChannel('jenista_payment_channel');
+  }
+} catch {
+  paymentSyncChannel = null;
+}
+
+export const notifyPaymentSync = (data?: any) => {
+  try {
+    if (paymentSyncChannel) {
+      paymentSyncChannel.postMessage({ type: 'PAYMENT_UPDATED', timestamp: Date.now(), data });
+    }
+  } catch { }
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('storage'));
+  }
+};
+
+export const onPaymentSync = (callback: () => void): (() => void) => {
+  const handler = () => {
+    callback();
+  };
+  if (paymentSyncChannel) {
+    paymentSyncChannel.addEventListener('message', handler);
+  }
+  if (typeof window !== 'undefined') {
+    window.addEventListener('storage', handler);
+  }
+  return () => {
+    if (paymentSyncChannel) {
+      paymentSyncChannel.removeEventListener('message', handler);
+    }
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('storage', handler);
+    }
+  };
+};
+
 export const createSampleReceiptSvg = (
   name: string,
   amount: number,
@@ -101,7 +142,98 @@ export const getStoredPaymentRequests = (): PaymentRequest[] => {
   }
 };
 
-export const approvePaymentRequestAction = (req: PaymentRequest) => {
+/**
+ * Fetch latest payment requests from Backend API with local storage fallback and two-way sync
+ */
+export const syncPaymentRequestsWithBackend = async (): Promise<PaymentRequest[]> => {
+  try {
+    const res: any = await fetchClient('/payments/requests');
+    if (res && res.data && Array.isArray(res.data)) {
+      const backendList: PaymentRequest[] = res.data.map((r: any) => ({
+        id: r.id,
+        customerId: r.customerId,
+        customerName: r.customerName,
+        mobile: r.mobile,
+        groupId: r.groupId,
+        groupName: r.groupName,
+        ticketNumber: r.ticketNumber,
+        amount: Number(r.amount),
+        paymentMode: r.paymentMode,
+        referenceNo: r.referenceNo,
+        bankAccountId: r.bankAccountId,
+        bankName: r.bankName,
+        paymentScreenshot: r.paymentScreenshot || r.screenshotUrl,
+        screenshotUrl: r.screenshotUrl || r.paymentScreenshot,
+        submittedAt: r.submittedAt || r.createdAt,
+        status: r.status,
+        remarks: r.remarks,
+        verifiedAt: r.verifiedAt,
+        rejectedAt: r.rejectedAt
+      }));
+
+      // Merge backend items with local items
+      const local = getStoredPaymentRequests();
+      const backendIds = new Set(backendList.map(b => b.id));
+
+      // Push any local requests that were created offline or in InPrivate to the backend DB
+      const unsyncedLocal = local.filter(item => !backendIds.has(item.id));
+      if (unsyncedLocal.length > 0) {
+        Promise.allSettled(
+          unsyncedLocal.map(item =>
+            fetchClient('/payments/requests', {
+              method: 'POST',
+              body: JSON.stringify(item)
+            })
+          )
+        ).catch(() => {});
+      }
+
+      const localMap = new Map<string, PaymentRequest>(local.map(item => [item.id, item]));
+
+      // Add backend items (backend status takes precedence if approved/rejected)
+      backendList.forEach(item => {
+        const existing = localMap.get(item.id);
+        if (!existing || item.status === 'APPROVED' || item.status === 'REJECTED') {
+          localMap.set(item.id, item);
+        }
+      });
+
+      const merged = Array.from(localMap.values()).sort(
+        (a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
+      );
+      localStorage.setItem('paymentRequests', JSON.stringify(merged));
+      return merged;
+    }
+  } catch (err) {
+    console.warn('Backend payment requests sync unavailable, using local cache:', err);
+  }
+  return getStoredPaymentRequests();
+};
+
+export const savePaymentRequest = async (req: PaymentRequest) => {
+  // 1. Save locally
+  const current = getStoredPaymentRequests();
+  const filtered = current.filter(r => r.id !== req.id);
+  const updated = [req, ...filtered];
+  localStorage.setItem('paymentRequests', JSON.stringify(updated));
+
+  // 2. Broadcast immediately
+  notifyPaymentSync(req);
+
+  // 3. Post to backend DB so other browsers / InPrivate windows receive it
+  try {
+    await fetchClient('/payments/requests', {
+      method: 'POST',
+      body: JSON.stringify(req)
+    });
+  } catch (err) {
+    console.warn('Could not post payment request to backend:', err);
+  }
+
+  return updated;
+};
+
+export const approvePaymentRequestAction = async (req: PaymentRequest) => {
   // 1. Resolve and credit receiving bank account
   const assignedBank = req.bankAccountId
     ? { id: req.bankAccountId, bankName: req.bankName || 'Company Bank' }
@@ -146,7 +278,7 @@ export const approvePaymentRequestAction = (req: PaymentRequest) => {
   };
   localStorage.setItem('ledgerTransactions', JSON.stringify([newLedgerEntry, ...ledger]));
 
-  // 3. Update mockCustomers
+  // 4. Update mockCustomers
   const customers = JSON.parse(localStorage.getItem('mockCustomers') || '[]');
   const cleanReqPhone = (req.mobile || '').replace(/\D/g, '');
   const updatedCustomers = customers.map((c: any) => {
@@ -171,7 +303,7 @@ export const approvePaymentRequestAction = (req: PaymentRequest) => {
   });
   localStorage.setItem('mockCustomers', JSON.stringify(updatedCustomers));
 
-  // 4. Update Chit Group Memberships
+  // 5. Update Chit Group Memberships
   const memberships = JSON.parse(localStorage.getItem('chitGroupMemberships') || '[]');
   const updatedMemberships = memberships.map((m: any) => {
     const mPhone = (m.mobile || m.phone || '').replace(/\D/g, '');
@@ -182,7 +314,7 @@ export const approvePaymentRequestAction = (req: PaymentRequest) => {
   });
   localStorage.setItem('chitGroupMemberships', JSON.stringify(updatedMemberships));
 
-  // 5. Update Chit Groups enrolled members
+  // 6. Update Chit Groups enrolled members
   const groups = JSON.parse(localStorage.getItem('mockChitGroups') || '[]');
   const updatedGroups = groups.map((g: any) => {
     if (g.code === req.groupId || g.id === req.groupId) {
@@ -199,7 +331,21 @@ export const approvePaymentRequestAction = (req: PaymentRequest) => {
   });
   localStorage.setItem('mockChitGroups', JSON.stringify(updatedGroups));
 
-  // 6. Sync to API if online
+  // 7. Sync to API backend if online
+  try {
+    await fetchClient(`/payments/requests/${req.id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        status: 'APPROVED',
+        verifiedAt: new Date().toISOString(),
+        bankAccountId: assignedBank?.id,
+        bankName: assignedBank?.bankName
+      })
+    });
+  } catch (err) {
+    console.warn('Could not sync approved payment status to backend:', err);
+  }
+
   try {
     const targetCust = updatedCustomers.find((c: any) =>
       c.id === req.customerId || c.customerCode === req.customerId || (cleanReqPhone && (c.mobile || c.phone || '').replace(/\D/g, '') === cleanReqPhone)
@@ -217,14 +363,27 @@ export const approvePaymentRequestAction = (req: PaymentRequest) => {
     }
   } catch { }
 
-  window.dispatchEvent(new Event('storage'));
+  notifyPaymentSync();
 };
 
-export const rejectPaymentRequestAction = (reqId: string) => {
+export const rejectPaymentRequestAction = async (reqId: string) => {
   const allReqs = getStoredPaymentRequests();
   const updatedReqs = allReqs.map((r: any) =>
     r.id === reqId ? { ...r, status: 'REJECTED', rejectedAt: new Date().toISOString() } : r
   );
   localStorage.setItem('paymentRequests', JSON.stringify(updatedReqs));
-  window.dispatchEvent(new Event('storage'));
+
+  try {
+    await fetchClient(`/payments/requests/${reqId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        status: 'REJECTED',
+        rejectedAt: new Date().toISOString()
+      })
+    });
+  } catch (err) {
+    console.warn('Could not sync rejected payment status to backend:', err);
+  }
+
+  notifyPaymentSync();
 };
