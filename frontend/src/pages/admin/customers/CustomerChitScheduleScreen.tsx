@@ -260,8 +260,12 @@ export const CustomerChitScheduleScreen = () => {
 
   const handlePrintSlip = (row: any) => {
     if (!scheduleData) return;
+    if (row.status !== 'PAID' && !(row.amountPaid && row.amountPaid > 0)) {
+      alert('Receipt cannot be generated because payment has not been completed for this month.');
+      return;
+    }
     printCashReceipt({
-      receiptNo: row.receiptNo || `SLIP-M${row.monthNumber}-${scheduleData.ticketNumber}`,
+      receiptNo: row.receiptNo || `REC-M${row.monthNumber}-${scheduleData.ticketNumber}`,
       date: row.paidOn || new Date().toISOString().split('T')[0],
       customerName: scheduleData.customerName,
       customerId: scheduleData.customerId,
@@ -270,8 +274,8 @@ export const CustomerChitScheduleScreen = () => {
       ticketNumber: scheduleData.ticketNumber,
       paymentMode: row.paymentMode || 'CASH',
       amount: row.amountPaid || row.revisedDue,
-      description: `Month ${row.monthNumber} (${row.monthName}) Chit Installment Dues`,
-      referenceNo: row.referenceNo || 'Official Record',
+      description: `Month ${row.monthNumber} (${row.monthName}) Chit Installment Payment Receipt`,
+      referenceNo: row.referenceNo || row.receiptNo || 'Official Record',
       collectedBy: user?.name || 'Jenista Chit Funds'
     });
   };
@@ -347,24 +351,15 @@ export const CustomerChitScheduleScreen = () => {
         </div>
 
         <div className="flex items-center gap-2.5 self-end sm:self-auto">
-          {/* Quick Pay / Receive Payment */}
-          {isStaffOrAdmin ? (
-            <button
-              onClick={() => setIsPayModalOpen(true)}
-              className="px-4 py-2 bg-[#9a6d25] hover:bg-[#855c1b] text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-1.5 active:scale-95"
-            >
-              <CreditCard className="w-4 h-4" />
-              <span>Receive Payment</span>
-            </button>
-          ) : (
-            <button
-              onClick={() => navigate('/customer/dashboard')}
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-1.5 active:scale-95"
-            >
-              <CreditCard className="w-4 h-4" />
-              <span>Pay Online</span>
-            </button>
-          )}
+          {/* Receive Payment / Bill Paid Entry */}
+          <button
+            onClick={() => setIsPayModalOpen(true)}
+            className="px-4 py-2 bg-[#9a6d25] hover:bg-[#855c1b] text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-1.5 active:scale-95"
+            title="Record received installment payment and entry bill paid"
+          >
+            <CreditCard className="w-4 h-4" />
+            <span>Receive Payment</span>
+          </button>
 
           {/* Full Customer Profile Navigation (for Admin/Staff if needed) */}
           {isStaffOrAdmin && (
@@ -653,17 +648,17 @@ export const CustomerChitScheduleScreen = () => {
 
                     {/* Receipt Print */}
                     <td className="py-3.5 px-4 text-center whitespace-nowrap">
-                      <button
-                        onClick={() => handlePrintSlip(row)}
-                        className={`p-1.5 rounded-lg border transition-all ${
-                          isPaid 
-                            ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-200' 
-                            : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200'
-                        }`}
-                        title={isPaid ? "Print Payment Receipt Voucher" : "Print Due Demand Notice"}
-                      >
-                        <Printer className="w-3.5 h-3.5" />
-                      </button>
+                      {isPaid || (row.amountPaid && row.amountPaid > 0) ? (
+                        <button
+                          onClick={() => handlePrintSlip(row)}
+                          className="p-1.5 rounded-lg border bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-200 transition-all shadow-2xs active:scale-95"
+                          title="Print Payment Receipt Voucher"
+                        >
+                          <Printer className="w-3.5 h-3.5" />
+                        </button>
+                      ) : (
+                        <span className="text-slate-300 text-xs font-semibold" title="No payment completed">—</span>
+                      )}
                     </td>
                   </tr>
                 );
