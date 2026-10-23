@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Layers, CreditCard, TrendingUp, Bell, History, Calendar, ArrowRight, Copy, Table, Gavel, Award, Building2, Wallet, CheckCircle2, Upload, Printer, X, Search, FileText, Landmark, QrCode, Check, Lock } from 'lucide-react';
 import { formatCurrency, formatDate } from '../../utils/format';
 import { printCashReceipt } from '../../utils/receiptPrinter';
@@ -12,6 +13,7 @@ import { isMockGroup } from '../../utils/cleanMockData';
 import { savePaymentRequest, onPaymentSync, syncPaymentRequestsWithBackend, type PaymentRequest } from '../../utils/paymentRequestsData';
 
 export const CustomerDashboard = () => {
+  const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState<'myChits' | 'regularPlanChart' | 'fixedPlanChart' | 'auctionPlanChart'>('myChits');
   const [activeChits, setActiveChits] = useState(0);
@@ -52,11 +54,14 @@ export const CustomerDashboard = () => {
   const [statementFilter, setStatementFilter] = useState<'ALL' | 'CASH' | 'ONLINE'>('ALL');
   const [statementSearch, setStatementSearch] = useState('');
 
+  const [isRestricted, setIsRestricted] = useState(false);
+
   useEffect(() => {
     const loadCustomerData = async () => {
       if (user?.id) {
         let chitsFromApi: any[] | null = null;
         let totalInvestedFromApi: number | null = null;
+        let apiStatus: string | null = null;
         try {
           const res = await fetchClient(`/customers?search=${user.id}`);
           if (res && res.data && Array.isArray(res.data) && res.data.length > 0) {
@@ -65,9 +70,12 @@ export const CustomerDashboard = () => {
               c._id === user.id || 
               (user.phone && (c.phone === user.phone || c.mobile === user.phone))
             ) || res.data[0];
-            if (found && Array.isArray(found.chits) && found.chits.length > 0) {
-              chitsFromApi = found.chits;
-              totalInvestedFromApi = found.totalPaid;
+            if (found) {
+              apiStatus = found.status;
+              if (Array.isArray(found.chits) && found.chits.length > 0) {
+                chitsFromApi = found.chits;
+                totalInvestedFromApi = found.totalPaid;
+              }
             }
           }
         } catch (e) {
@@ -85,6 +93,14 @@ export const CustomerDashboard = () => {
             (cleanUserPhone && cPhone === cleanUserPhone)
           );
         });
+
+        // Check if customer account is deactivated / restricted
+        const currentStatus = apiStatus || customer?.status || (user as any)?.status;
+        if (currentStatus === 'INACTIVE' || currentStatus === 'DEACTIVATED') {
+          setIsRestricted(true);
+        } else {
+          setIsRestricted(false);
+        }
         
         let finalChits = ((chitsFromApi && chitsFromApi.length > 0) ? chitsFromApi : (customer?.chits || []))
           .filter((ch: any) => !isMockGroup({ id: ch.groupId, name: ch.groupName }));
@@ -379,6 +395,41 @@ export const CustomerDashboard = () => {
         </div>
       </header>
 
+      {/* Account Deactivated / Restricted Block Screen */}
+      {isRestricted ? (
+        <div className="flex-1 flex items-center justify-center p-4 sm:p-8">
+          <div className="bg-white rounded-2xl border border-red-200 shadow-lg max-w-lg w-full p-8 text-center space-y-5 animate-in fade-in duration-200">
+            <div className="w-16 h-16 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center mx-auto shadow-inner">
+              <Lock className="w-8 h-8" />
+            </div>
+            <div className="space-y-2">
+              <span className="inline-block px-3 py-1 rounded-full text-xs font-bold bg-danger/10 text-danger border border-danger/20 uppercase tracking-wider">
+                Account Suspended
+              </span>
+              <h2 className="text-2xl font-bold text-neutral-900">App Access Restricted</h2>
+              <p className="text-sm text-neutral-600 leading-relaxed">
+                Your customer account has been deactivated by the branch administrator. 
+                You are restricted from viewing dashboards, submitting payments, or requesting withdrawals.
+              </p>
+            </div>
+
+            <div className="bg-neutral-50 rounded-xl p-4 text-xs text-neutral-600 text-left border border-neutral-200 space-y-1.5">
+              <p className="font-semibold text-neutral-800">What should you do?</p>
+              <p>• Please contact the Jenista Chits head office or your branch agent directly.</p>
+              <p>• Customer ID: <span className="font-mono font-bold text-neutral-900">{user?.id}</span></p>
+            </div>
+
+            <div className="pt-2 flex flex-col sm:flex-row gap-3 justify-center">
+              <button
+                onClick={logout}
+                className="w-full py-2.5 px-4 bg-danger text-white rounded-xl text-sm font-semibold hover:bg-danger-dark transition-colors shadow-sm"
+              >
+                Sign Out
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
       <div className="flex-1 p-4 md:p-8">
         <div className="max-w-7xl mx-auto space-y-6">
           
@@ -703,7 +754,16 @@ export const CustomerDashboard = () => {
                               </div>
                             </div>
 
-                            <div className="flex items-center gap-2 sm:self-center">
+                            <div className="flex items-center gap-2 sm:self-center flex-wrap">
+                              <button
+                                onClick={() => navigate(`/customer/chits/${encodeURIComponent(chit.groupId)}/schedule?group=${encodeURIComponent(chit.groupId)}`)}
+                                className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 px-3.5 py-1.5 rounded-lg text-xs font-bold shadow-2xs transition-colors flex items-center gap-1.5"
+                                title="View 20-month due amounts, due dates, paid on dates, and payment status"
+                              >
+                                <Calendar className="w-3.5 h-3.5 text-amber-700" />
+                                <span>Due Chart & Schedule</span>
+                              </button>
+
                               {isDisbursed ? (
                                 <span className="inline-flex items-center text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-200">
                                   <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
@@ -905,6 +965,7 @@ export const CustomerDashboard = () => {
           )}
         </div>
       </div>
+      )}
 
       {/* Customer Payment Request Submission Modal */}
       {paymentModalChit && (

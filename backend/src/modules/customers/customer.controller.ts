@@ -147,6 +147,10 @@ export class CustomerController {
         throw new ApiError(403, 'Your account registration was rejected', 'ACCOUNT_REJECTED');
       }
 
+      if (customer.status === 'INACTIVE') {
+        throw new ApiError(403, 'Your account has been deactivated by administrator. Please contact your branch.', 'ACCOUNT_DEACTIVATED');
+      }
+
       if (customer.passwordHash) {
         const isMatch = await bcrypt.compare(password, customer.passwordHash);
         if (!isMatch) {

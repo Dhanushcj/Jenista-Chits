@@ -6,3 +6,37 @@
 {"level":"info","message":"Server running in development mode on port 3000","timestamp":"2026-10-23T08:58:57.077Z"}
 {"level":"info","message":"MongoDB Connected: ac-lb3lkqy-shard-00-00.lttiogk.mongodb.net","timestamp":"2026-10-23T09:04:00.877Z"}
 {"level":"info","message":"Server running in development mode on port 3000","timestamp":"2026-10-23T09:04:00.891Z"}
+{"errorCode":"UNAUTHORIZED","level":"error","statusCode":401,"timestamp":"2026-10-23T09:38:31.833Z"}
+{"errorCode":"UNAUTHORIZED","level":"error","statusCode":401,"timestamp":"2026-10-23T09:38:31.878Z"}
+{"errorCode":"UNAUTHORIZED","level":"error","statusCode":401,"timestamp":"2026-10-23T09:47:39.235Z"}
+{"errorCode":"UNAUTHORIZED","level":"error","statusCode":401,"timestamp":"2026-10-23T09:47:39.260Z"}
+{"errorCode":"UNAUTHORIZED","level":"error","statusCode":401,"timestamp":"2026-10-23T09:52:50.357Z"}
+{"errorCode":"UNAUTHORIZED","level":"error","statusCode":401,"timestamp":"2026-10-23T09:52:50.367Z"}
+{"errorCode":"UNAUTHORIZED","level":"error","statusCode":401,"timestamp":"2026-10-23T09:53:04.780Z"}
+{"errorCode":"UNAUTHORIZED","level":"error","statusCode":401,"timestamp":"2026-10-23T09:53:04.793Z"}
+{"errorCode":"UNAUTHORIZED","level":"error","statusCode":401,"timestamp":"2026-10-23T09:53:11.089Z"}
+{"errorCode":"UNAUTHORIZED","level":"error","statusCode":401,"timestamp":"2026-10-23T09:53:11.100Z"}
+{"errorCode":"UNAUTHORIZED","level":"error","statusCode":401,"timestamp":"2026-10-23T10:00:46.433Z"}
+{"errorCode":"UNAUTHORIZED","level":"error","statusCode":401,"timestamp":"2026-10-23T10:00:46.446Z"}
+{"errorCode":"UNAUTHORIZED","level":"error","statusCode":401,"timestamp":"2026-10-23T10:28:28.133Z"}
+{"errorCode":"UNAUTHORIZED","level":"error","statusCode":401,"timestamp":"2026-10-23T10:28:28.150Z"}
+{"level":"info","message":"MongoDB Connected: ac-lb3lkqy-shard-00-00.lttiogk.mongodb.net","timestamp":"2026-10-23T10:46:34.437Z"}
+{"level":"info","message":"Server running in development mode on port 3000","timestamp":"2026-10-23T10:46:34.463Z"}
+{"errorCode":"UNAUTHORIZED","level":"error","statusCode":401,"timestamp":"2026-10-23T10:55:59.246Z"}
+{"errorCode":"UNAUTHORIZED","level":"error","statusCode":401,"timestamp":"2026-10-23T10:55:59.338Z"}
+{"errorCode":"UNAUTHORIZED","level":"error","statusCode":401,"timestamp":"2026-10-23T10:56:34.555Z"}
+{"errorCode":"UNAUTHORIZED","level":"error","statusCode":401,"timestamp":"2026-10-23T10:56:34.564Z"}
+{"errorCode":"UNAUTHORIZED","level":"error","statusCode":401,"timestamp":"2026-10-23T11:07:37.946Z"}
+{"errorCode":"UNAUTHORIZED","level":"error","statusCode":401,"timestamp":"2026-10-23T11:07:37.955Z"}
+{"errorCode":"UNAUTHORIZED","level":"error","statusCode":401,"timestamp":"2026-10-23T11:08:47.288Z"}
+{"errorCode":"UNAUTHORIZED","level":"error","statusCode":401,"timestamp":"2026-10-23T11:08:47.298Z"}
+{"errorCode":"UNAUTHORIZED","level":"error","statusCode":401,"timestamp":"2026-10-23T11:09:58.431Z"}
+{"errorCode":"UNAUTHORIZED","level":"error","statusCode":401,"timestamp":"2026-10-23T11:09:58.438Z"}
+{"errorCode":"UNAUTHORIZED","level":"error","statusCode":401,"timestamp":"2026-10-23T11:10:16.816Z"}
+{"errorCode":"UNAUTHORIZED","level":"error","statusCode":401,"timestamp":"2026-10-23T11:10:16.823Z"}
+{"errorCode":"UNAUTHORIZED","level":"error","statusCode":401,"timestamp":"2026-10-23T11:10:26.408Z"}
+{"errorCode":"UNAUTHORIZED","level":"error","statusCode":401,"timestamp":"2026-10-23T11:10:26.413Z"}
+{"errorCode":"UNAUTHORIZED","level":"error","statusCode":401,"timestamp":"2026-10-23T11:10:39.797Z"}
+{"errorCode":"UNAUTHORIZED","level":"error","statusCode":401,"timestamp":"2026-10-23T11:10:39.802Z"}
+{"errorCode":"UNAUTHORIZED","level":"error","statusCode":401,"timestamp":"2026-10-23T11:29:15.321Z"}
+{"errorCode":"UNAUTHORIZED","level":"error","statusCode":401,"timestamp":"2026-10-23T11:29:15.329Z"}

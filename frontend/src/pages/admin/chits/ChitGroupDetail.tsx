@@ -392,7 +392,13 @@ export const ChitGroupDetail = () => {
                               <div className="flex items-center gap-3">
                                 <img src={m.customerImage} className="w-8 h-8 rounded-full border border-neutral-200" alt="" />
                                 <div>
-                                  <div className="font-bold text-neutral-800">{m.customerName}</div>
+                                  <Link 
+                                    to={`/admin/customers/${m.customerId}/schedule?group=${encodeURIComponent(group.name || group.id || targetGroupId)}`}
+                                    className="font-bold text-neutral-800 hover:text-amber-800 hover:underline transition-colors block"
+                                    title="View due amount, due date, paid on, and autocalculated pre-chart"
+                                  >
+                                    {m.customerName}
+                                  </Link>
                                   <div className="text-xs text-neutral-500">{m.customerId}</div>
                                 </div>
                               </div>

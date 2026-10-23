@@ -1050,9 +1050,9 @@ export const AdminDashboard = () => {
                       <tr key={c.id} className="hover:bg-slate-50/70 transition-colors">
                         <td className="px-5 py-3">
                           <button
-                            onClick={() => navigate(`/admin/customers/${custTargetId}?group=${encodeURIComponent(groupIdentifier)}`)}
+                            onClick={() => navigate(`/admin/customers/${custTargetId}/schedule?group=${encodeURIComponent(groupIdentifier)}`)}
                             className="text-left group/cust hover:opacity-90 focus:outline-none"
-                            title="Click to view customer profile for this group"
+                            title="Click to view due amounts, due dates, paid on dates, and autocalculated pre-chart"
                           >
                             <div className="font-bold text-slate-900 text-xs group-hover/cust:text-[#9a6d25] group-hover/cust:underline transition-colors flex items-center gap-1.5">
                               <span>{c.name}</span>
@@ -1093,19 +1093,19 @@ export const AdminDashboard = () => {
                         <td className="px-5 py-3 text-center">
                           <div className="flex items-center justify-center gap-2">
                             <button
-                              onClick={() => navigate(`/admin/customers/${custTargetId}?action=receive-payment&chitGroup=${encodeURIComponent(groupIdentifier)}&amount=${monthlyDue}`)}
+                              onClick={() => navigate(`/admin/customers/${custTargetId}/schedule?group=${encodeURIComponent(groupIdentifier)}`)}
                               className="px-2.5 py-1.5 bg-[#9a6d25] hover:bg-[#855c1b] text-white text-xs font-bold rounded-lg shadow-2xs inline-flex items-center gap-1 transition-all active:scale-95"
-                              title="Receive payment for this customer in this group"
+                              title="View due amount, due date, paid on, and full schedule chart"
                             >
-                              <span>Receive Payment</span>
+                              <span>Due Chart</span>
+                              <span className="text-[10px]">&rarr;</span>
                             </button>
                             <button
                               onClick={() => navigate(`/admin/customers/${custTargetId}?group=${encodeURIComponent(groupIdentifier)}`)}
-                              className="px-2.5 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold rounded-lg shadow-2xs inline-flex items-center gap-1 transition-colors"
-                              title="View customer profile focused on this group"
+                              className="px-2 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-500 hover:text-slate-800 text-xs font-medium rounded-lg shadow-2xs inline-flex items-center gap-1 transition-colors"
+                              title="View full customer profile"
                             >
                               <span>Profile</span>
-                              <span className="text-[10px]">&rarr;</span>
                             </button>
                           </div>
                         </td>

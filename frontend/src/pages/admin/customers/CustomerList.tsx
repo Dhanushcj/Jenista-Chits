@@ -245,10 +245,14 @@ export const CustomerList = () => {
                             </span>
                           </td>
                           <td className="table-cell">
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                              c.status === 'ACTIVE' ? 'bg-success-light text-success' : 'bg-danger-light text-danger'
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ${
+                              c.status === 'ACTIVE' 
+                                ? 'bg-success-light text-success border border-emerald-200' 
+                                : c.status === 'PENDING_APPROVAL'
+                                  ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                                  : 'bg-danger-light text-danger border border-danger/30'
                             }`}>
-                              {c.status}
+                              {c.status === 'INACTIVE' ? 'DEACTIVATED' : c.status}
                             </span>
                           </td>
                           <td className="table-cell">

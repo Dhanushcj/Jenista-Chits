@@ -23,6 +23,7 @@ import { NonPayersReport } from './pages/admin/reports/NonPayersReport';
 import { Payments } from './pages/admin/finance/Payments';
 import { ManageBanks } from './pages/admin/finance/ManageBanks';
 import { CustomerDashboard } from './pages/customer/CustomerDashboard';
+import { CustomerChitScheduleScreen } from './pages/admin/customers/CustomerChitScheduleScreen';
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { purgeMockData } from './utils/cleanMockData';
@@ -59,6 +60,8 @@ function App() {
               <Route path="/admin/customers/add" element={<AddModifyCustomer />} />
               <Route path="/admin/customers/approvals" element={<AddModifyCustomerChit />} />
               <Route path="/admin/customers/:id" element={<CustomerProfile />} />
+              <Route path="/admin/customers/:id/schedule" element={<CustomerChitScheduleScreen />} />
+              <Route path="/customer/chits/:id/schedule" element={<CustomerChitScheduleScreen />} />
               <Route path="/admin/chit-groups" element={<ChitGroupList />} />
               <Route path="/admin/chit-groups/:id" element={<ChitGroupDetail />} />
               <Route path="/admin/ledger" element={<Ledger />} />

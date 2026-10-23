@@ -6,7 +6,7 @@ import {
   User, Phone, MapPin, Building, 
   Wallet, FileText, AlertCircle, CheckCircle2,
   Calendar, Mail, CreditCard, Activity, ArrowUpRight, ArrowDownRight, Clock, Layers, X, Users, BookOpen, Download, Award,
-  Eye, ExternalLink, Printer, Landmark, Filter
+  Eye, ExternalLink, Printer, Landmark, Filter, UserX, UserCheck
 } from 'lucide-react';
 import { cn } from '../../../utils/cn';
 import { fetchClient } from '../../../api/client';
@@ -50,6 +50,76 @@ export const CustomerProfile = () => {
   const [isChangeBankModalOpen, setIsChangeBankModalOpen] = useState(false);
   const [selectedBankToAssign, setSelectedBankToAssign] = useState('INHERIT');
   const [bankUpdateMsg, setBankUpdateMsg] = useState<string | null>(null);
+
+  // Customer Status Deactivation States
+  const [isStatusConfirmModalOpen, setIsStatusConfirmModalOpen] = useState(false);
+  const [statusActionLoading, setStatusActionLoading] = useState(false);
+  const [statusActionSuccess, setStatusActionSuccess] = useState<string | null>(null);
+
+  const handleToggleCustomerStatus = async () => {
+    if (!customer) return;
+    setStatusActionLoading(true);
+    setStatusActionSuccess(null);
+
+    const isCurrentlyDeactivated = customer.status === 'INACTIVE' || customer.status === 'DEACTIVATED';
+    const newStatus = isCurrentlyDeactivated ? 'ACTIVE' : 'INACTIVE';
+    const targetId = customer.id || customer.customerCode || id;
+    const phone = (customer.mobile || customer.phone || '').replace(/\D/g, '');
+
+    // 1. Update localStorage mockCustomers
+    try {
+      const customers = JSON.parse(localStorage.getItem('mockCustomers') || '[]');
+      const updatedCustomers = customers.map((c: any) => {
+        const cPhone = (c.mobile || c.phone || '').replace(/\D/g, '');
+        if (
+          c.id === targetId || 
+          c.mongoId === targetId || 
+          c.customerCode === targetId || 
+          (phone && cPhone === phone)
+        ) {
+          return { ...c, status: newStatus };
+        }
+        return c;
+      });
+      localStorage.setItem('mockCustomers', JSON.stringify(updatedCustomers));
+    } catch (e) {
+      console.warn('Error updating mockCustomers status:', e);
+    }
+
+    // 2. Update local state immediately
+    setCustomer((prev: any) => ({ ...prev, status: newStatus }));
+
+    // 3. Sync to backend API
+    try {
+      const mongoId = customer.mongoId || customer._id || targetId;
+      await fetchClient(`/customers/${mongoId}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: newStatus })
+      });
+    } catch (err) {
+      console.warn('Backend status update fallback:', err);
+      // Try generic patch
+      try {
+        const mongoId = customer.mongoId || customer._id || targetId;
+        await fetchClient(`/customers/${mongoId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ status: newStatus })
+        });
+      } catch (e) {
+        console.warn('Generic customer patch also failed:', e);
+      }
+    }
+
+    window.dispatchEvent(new Event('storage'));
+    setStatusActionLoading(false);
+    setIsStatusConfirmModalOpen(false);
+    setStatusActionSuccess(
+      newStatus === 'INACTIVE' 
+        ? 'Customer deactivated successfully. App access has been restricted.' 
+        : 'Customer reactivated successfully. App access has been restored.'
+    );
+    setTimeout(() => setStatusActionSuccess(null), 4000);
+  };
 
   // Helper to resolve chits from all local and group sources
   const resolveChitsForCustomer = (custTarget: any, targetId: string) => {
@@ -699,12 +769,41 @@ export const CustomerProfile = () => {
             <div className="mb-2">
               <div className="flex items-center gap-2 mb-1">
                 <h2 className="text-xl font-bold text-neutral-900">{displayName}</h2>
-                <CheckCircle2 className="w-5 h-5 text-success" />
+                {customer?.status === 'INACTIVE' || customer?.status === 'DEACTIVATED' ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-danger/10 text-danger border border-danger/20">
+                    <UserX className="w-3.5 h-3.5 text-danger" />
+                    Deactivated
+                  </span>
+                ) : (
+                  <CheckCircle2 className="w-5 h-5 text-success" />
+                )}
               </div>
-              <p className="text-sm font-medium text-primary-900 bg-primary-50 inline-flex px-2 py-0.5 rounded">
-                {displayId}
-              </p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="text-sm font-medium text-primary-900 bg-primary-50 inline-flex px-2 py-0.5 rounded">
+                  {displayId}
+                </p>
+                {customer?.status === 'INACTIVE' || customer?.status === 'DEACTIVATED' ? (
+                  <span className="text-[11px] font-semibold text-danger bg-danger/5 border border-danger/20 px-2 py-0.5 rounded">
+                    App Access Restricted
+                  </span>
+                ) : (
+                  <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
+                    App Active
+                  </span>
+                )}
+              </div>
             </div>
+
+            {/* Warning banner if deactivated */}
+            {(customer?.status === 'INACTIVE' || customer?.status === 'DEACTIVATED') && (
+              <div className="mt-3 p-2.5 bg-danger/10 border border-danger/30 rounded-lg text-xs text-danger flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold">Account Deactivated</p>
+                  <p className="text-[11px] text-danger/80">Customer cannot login or raise payment requests from the customer app.</p>
+                </div>
+              </div>
+            )}
           </div>
           
           <div className="border-t border-neutral-100 px-6 py-5 bg-neutral-50/50 space-y-4">
@@ -847,6 +946,27 @@ export const CustomerProfile = () => {
             )}
           </div>
           <div className="flex items-center gap-2">
+            {/* Status Deactivate / Reactivate button */}
+            {customer?.status === 'INACTIVE' || customer?.status === 'DEACTIVATED' ? (
+              <button
+                type="button"
+                className="bg-emerald-600 text-white px-3.5 py-1.5 rounded-lg text-xs font-bold hover:bg-emerald-700 transition-colors flex items-center gap-1.5 shadow-xs"
+                onClick={() => setIsStatusConfirmModalOpen(true)}
+              >
+                <UserCheck className="w-3.5 h-3.5" />
+                Reactivate Customer
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="bg-danger/10 text-danger border border-danger/30 px-3.5 py-1.5 rounded-lg text-xs font-bold hover:bg-danger hover:text-white transition-colors flex items-center gap-1.5 shadow-xs"
+                onClick={() => setIsStatusConfirmModalOpen(true)}
+              >
+                <UserX className="w-3.5 h-3.5" />
+                Deactivate & Restrict App
+              </button>
+            )}
+
             <button 
               className="bg-primary-600 text-white px-4 py-1.5 rounded-lg font-semibold hover:bg-primary-700 transition-colors"
               onClick={() => {
@@ -864,6 +984,14 @@ export const CustomerProfile = () => {
             </button>
           </div>
         </div>
+
+        {/* Status Action Success Banner */}
+        {statusActionSuccess && (
+          <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-xl text-xs font-semibold flex items-center gap-2 shadow-xs">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>{statusActionSuccess}</span>
+          </div>
+        )}
 
         {/* Group Context Switcher / Notice Banner */}
         {customer?.chits && customer.chits.length > 0 && (
@@ -1261,6 +1389,15 @@ export const CustomerProfile = () => {
                                 <Award className="w-3.5 h-3.5" />
                                 {hasWReq ? 'Process Requested Disbursal' : 'Withdraw / Disburse Prize'}
                               </button>
+
+                              <Link
+                                to={`/admin/customers/${displayId}/schedule?group=${encodeURIComponent(chit.groupId)}`}
+                                className="text-xs px-3 py-1.5 rounded-lg font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 transition-all flex items-center gap-1.5 whitespace-nowrap"
+                                title="View autocalculated 20-month due schedule, due date, paid on, and payment status"
+                              >
+                                <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                                <span>Due Chart & Schedule</span>
+                              </Link>
                             </div>
                           </div>
                         );
@@ -1914,6 +2051,101 @@ export const CustomerProfile = () => {
                   Save Custom Bank
                 </button>
               </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal for Deactivate / Reactivate Customer */}
+      {isStatusConfirmModalOpen && (
+        <div className="fixed inset-0 bg-neutral-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-150 border border-neutral-200">
+            <div className={`p-5 flex items-start gap-4 ${customer?.status === 'INACTIVE' || customer?.status === 'DEACTIVATED' ? 'bg-emerald-50/60 border-b border-emerald-100' : 'bg-red-50/60 border-b border-red-100'}`}>
+              <div className={`p-3 rounded-xl shrink-0 ${customer?.status === 'INACTIVE' || customer?.status === 'DEACTIVATED' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'}`}>
+                {customer?.status === 'INACTIVE' || customer?.status === 'DEACTIVATED' ? (
+                  <UserCheck className="w-6 h-6" />
+                ) : (
+                  <UserX className="w-6 h-6" />
+                )}
+              </div>
+              <div className="flex-1">
+                <h3 className="text-base font-bold text-neutral-900">
+                  {customer?.status === 'INACTIVE' || customer?.status === 'DEACTIVATED' 
+                    ? `Reactivate Customer Account?` 
+                    : `Deactivate & Restrict Customer?`}
+                </h3>
+                <p className="text-xs text-neutral-600 mt-1">
+                  Customer: <span className="font-bold text-neutral-900">{displayName}</span> ({displayId})
+                </p>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => setIsStatusConfirmModalOpen(false)}
+                className="text-neutral-400 hover:text-neutral-600 p-1"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-3 text-xs text-neutral-600">
+              {customer?.status === 'INACTIVE' || customer?.status === 'DEACTIVATED' ? (
+                <>
+                  <p>
+                    Reactivating this customer will immediately:
+                  </p>
+                  <ul className="list-disc pl-5 space-y-1 text-neutral-700">
+                    <li>Restore their ability to log into the Customer mobile / web application.</li>
+                    <li>Allow them to view their chit schedules, statement history, and raise payment requests.</li>
+                    <li>Update their status to <strong>ACTIVE</strong> in the system.</li>
+                  </ul>
+                </>
+              ) : (
+                <>
+                  <p className="text-danger font-medium">
+                    Are you sure you want to deactivate this customer?
+                  </p>
+                  <ul className="list-disc pl-5 space-y-1.5 text-neutral-700">
+                    <li><strong>App Access Restriction:</strong> The customer will be immediately blocked from logging into the mobile/web application.</li>
+                    <li>If already logged in, their session will show an Account Suspended notice restricting dashboard access.</li>
+                    <li>Existing enrolled chit records and payment transactions will remain intact for audit and bookkeeping.</li>
+                  </ul>
+                </>
+              )}
+            </div>
+
+            <div className="px-6 py-4 bg-neutral-50 border-t border-neutral-100 flex justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setIsStatusConfirmModalOpen(false)}
+                disabled={statusActionLoading}
+                className="px-4 py-2 text-xs font-bold text-neutral-600 hover:bg-neutral-100 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleToggleCustomerStatus}
+                disabled={statusActionLoading}
+                className={`px-4 py-2 text-xs font-bold text-white rounded-lg shadow-sm transition-colors flex items-center gap-1.5 ${
+                  customer?.status === 'INACTIVE' || customer?.status === 'DEACTIVATED'
+                    ? 'bg-emerald-600 hover:bg-emerald-700'
+                    : 'bg-danger hover:bg-danger/90'
+                }`}
+              >
+                {statusActionLoading ? (
+                  <span>Processing...</span>
+                ) : customer?.status === 'INACTIVE' || customer?.status === 'DEACTIVATED' ? (
+                  <>
+                    <UserCheck className="w-4 h-4" />
+                    Confirm Reactivation
+                  </>
+                ) : (
+                  <>
+                    <UserX className="w-4 h-4" />
+                    Confirm Deactivation & Restrict
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

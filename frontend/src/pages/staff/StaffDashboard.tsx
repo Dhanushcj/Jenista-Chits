@@ -15,7 +15,8 @@ import {
   IndianRupee, 
   X,
   RotateCw,
-  Layers
+  Layers,
+  Calendar
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '../../utils/format';
 import { printCashReceipt } from '../../utils/receiptPrinter';
@@ -542,10 +543,18 @@ export const StaffDashboard = () => {
                             </span>
                           </td>
                           <td className="py-3.5 px-4">
-                            <div className="flex items-center justify-center gap-2">
+                            <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                              <button
+                                onClick={() => navigate(`/admin/customers/${c.id}/schedule?group=${encodeURIComponent(c.chits?.[0]?.groupId || c.groupId || '')}`)}
+                                className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-lg text-xs font-bold transition-all shadow-2xs flex items-center gap-1"
+                                title="View Due Amount, Due Date, and Pre-Chart Schedule"
+                              >
+                                <Calendar className="w-3.5 h-3.5 text-amber-700" />
+                                <span>Due Chart</span>
+                              </button>
                               <button
                                 onClick={() => handleQuickCollect(c)}
-                                className="px-3 py-1.5 bg-primary-900 hover:bg-primary-800 text-white rounded-lg text-xs font-bold transition-all shadow-xs flex items-center gap-1.5"
+                                className="px-3 py-1.5 bg-primary-900 hover:bg-primary-800 text-white rounded-lg text-xs font-bold transition-all shadow-xs flex items-center gap-1"
                               >
                                 <Receipt className="w-3.5 h-3.5" />
                                 <span>Collect</span>

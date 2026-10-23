@@ -47,7 +47,11 @@ export const CustomerLoginPage = () => {
         }
       } catch (apiErr: any) {
         // If API returned a specific business status error, throw it directly
-        if (apiErr.message?.includes('pending admin approval') || apiErr.message?.includes('rejected')) {
+        if (
+          apiErr.message?.includes('pending admin approval') || 
+          apiErr.message?.includes('rejected') ||
+          apiErr.message?.includes('deactivated')
+        ) {
           throw apiErr;
         }
         console.warn('API customer login error, falling back to local storage:', apiErr);
@@ -66,6 +70,9 @@ export const CustomerLoginPage = () => {
         }
         if (customer.status === 'REJECTED') {
           throw new Error('Your account registration was rejected.');
+        }
+        if (customer.status === 'INACTIVE' || customer.status === 'DEACTIVATED') {
+          throw new Error('Your account has been deactivated by administrator. Access restricted.');
         }
         
         login(`token-${customer.id}`, {
