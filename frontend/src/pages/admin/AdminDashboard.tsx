@@ -2561,7 +2561,7 @@ export const AdminDashboard = () => {
                 <div className="w-9 h-9 rounded-full bg-[#f3e8ff] text-[#9333ea] flex items-center justify-center group-hover:scale-105 transition-transform">
                   <Gavel className="w-4 h-4" />
                 </div>
-                <span className="text-xs font-semibold text-slate-700 leading-tight">Create Auction</span>
+                <span className="text-xs font-semibold text-slate-700 leading-tight">Schemes</span>
               </button>
 
               <button
@@ -2575,7 +2575,10 @@ export const AdminDashboard = () => {
               </button>
 
               <button
-                onClick={() => navigate('/admin/chit-groups')}
+                onClick={() => {
+                  setSelectedSchemeFilter('GROUPS');
+                  setGroupSearchQuery('');
+                }}
                 className="p-3 bg-[#f4f7fa] hover:bg-[#e8edf2] border border-[#e2e8f0] rounded-xl transition-all group flex flex-col items-center justify-center gap-1.5 shadow-2xs"
               >
                 <div className="w-9 h-9 rounded-full bg-[#e2e8f0] text-[#475569] flex items-center justify-center group-hover:scale-105 transition-transform">
@@ -2594,7 +2597,10 @@ export const AdminDashboard = () => {
                 <span>Group Overview</span>
               </h3>
               <button
-                onClick={() => navigate('/admin/chit-groups')}
+                onClick={() => {
+                  setSelectedSchemeFilter('GROUPS');
+                  setGroupSearchQuery('');
+                }}
                 className="text-xs font-medium text-slate-500 hover:text-slate-800 flex items-center gap-1 transition-colors"
               >
                 <span>View All</span>

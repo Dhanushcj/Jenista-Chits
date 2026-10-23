@@ -10,7 +10,6 @@ import {
   Receipt,
   ChevronDown,
   Landmark,
-  Layers,
   Gavel,
   BarChart3,
   Bell,
@@ -138,7 +137,6 @@ export const Sidebar = (_props: SidebarProps = {}) => {
   // Primary Navigation
   const adminMainNavigation: NavItem[] = [
     { name: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
-    { name: 'Groups', href: '/admin/chit-groups', icon: Layers },
     { 
       name: 'Members', 
       href: '/admin/customers', 
@@ -156,7 +154,7 @@ export const Sidebar = (_props: SidebarProps = {}) => {
       icon: CreditCard,
       badge: pendingPaymentsCount
     },
-    { name: 'Auction', href: '/admin/manage-plans', icon: Gavel },
+    { name: 'Schemes', href: '/admin/manage-plans', icon: Gavel },
     { name: 'Manage Bank', href: '/admin/banks', icon: Landmark },
     { name: 'Ledger', href: '/admin/ledger', icon: FileText },
     { 

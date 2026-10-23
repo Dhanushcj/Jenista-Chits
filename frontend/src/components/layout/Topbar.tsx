@@ -218,7 +218,7 @@ export const Topbar = (_props: TopbarProps = {}) => {
                         onClick={() => {
                           setIsSearchOpen(false);
                           setSearchQuery('');
-                          navigate(`/admin/chit-groups`);
+                          navigate(`/admin/dashboard?group=${encodeURIComponent(g.name || g.id)}`);
                         }}
                         className="px-3 py-2 hover:bg-amber-50/60 rounded-xl cursor-pointer flex items-center justify-between transition-colors"
                       >
