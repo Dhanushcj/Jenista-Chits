@@ -12,6 +12,7 @@ import {
   Modal,
   TextInput,
   Alert,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../theme/colors';
@@ -65,41 +66,52 @@ export const ChitGroupDetailScreen: React.FC<{ route: any; navigation: any }> = 
   const loadGroupMembers = async () => {
     try {
       const customers = await DataSyncManager.getCustomers();
-      const targetId = (group?.id || '').toLowerCase();
-      const targetName = (group?.name || '').toLowerCase();
+      const targetId = (group?.id || '').toLowerCase().trim();
+      const targetName = (group?.name || '').toLowerCase().trim();
 
       const matched: any[] = [];
+      const seenKey = new Set<string>();
 
       customers.forEach((c) => {
         if (Array.isArray(c.chits)) {
           c.chits.forEach((ch: any) => {
-            const chGId = String(ch.groupId || '').toLowerCase();
-            const chGName = String(ch.groupName || '').toLowerCase();
+            const chGId = String(ch.groupId || '').toLowerCase().trim();
+            const chGName = String(ch.groupName || '').toLowerCase().trim();
 
             const isMatch =
-              chGId === targetId ||
-              chGName === targetName ||
+              (targetId && chGId === targetId) ||
+              (targetName && chGName === targetName) ||
+              (targetName && chGId === targetName) ||
+              (targetId && chGName === targetId) ||
               (targetId && chGId.includes(targetId)) ||
               (targetName && chGName.includes(targetName));
 
             if (isMatch) {
-              matched.push({
-                customerId: c.id,
-                mongoId: c.mongoId,
-                customerName: c.name || c.fullName,
-                mobile: c.phone || c.mobile,
-                ticketNumber: ch.ticketNumber || '1',
-                scheme: ch.scheme || group?.type || 'Auction',
-                chitValue: ch.chitValue || chitValue,
-                monthlyInstallment: ch.monthlyInstallment || monthlyInstallment,
-                paymentStatus: ch.paymentStatus || (Number(c.pending || 0) > 0 ? 'DUE' : 'PAID'),
-                totalPaid: ch.totalPaid || c.totalPaid || 0,
-                pending: ch.pending || c.pending || 0,
-                isWithdrawn: ch.isWithdrawn || false,
-                withdrawnAmount: ch.withdrawnAmount,
-                fullCustomer: c,
-                chitObject: ch,
-              });
+              const custId = c.id || (c as any).customerCode || c.mongoId || 'CUST';
+              const ticket = String(ch.ticketNumber || matched.length + 1);
+              const key = `${custId}-${ticket}`;
+
+              if (!seenKey.has(key)) {
+                seenKey.add(key);
+                matched.push({
+                  customerId: custId,
+                  mongoId: c.mongoId,
+                  customerName: c.name || c.fullName || 'Member',
+                  mobile: c.phone || c.mobile || '—',
+                  ticketNumber: ticket,
+                  scheme: ch.scheme || (c as any).scheme || group?.type || 'Regular',
+                  duration: Number(ch.duration || ch.months || group?.duration || 20),
+                  chitValue: Number(ch.chitValue || chitValue),
+                  monthlyInstallment: Number(ch.monthlyInstallment || monthlyInstallment),
+                  paymentStatus: ch.paymentStatus || (Number(c.pending || 0) > 0 ? 'DUE' : 'PAID'),
+                  totalPaid: Number(ch.totalPaid ?? c.totalPaid ?? 0),
+                  pending: Number(ch.pending ?? c.pending ?? 0),
+                  isWithdrawn: ch.isWithdrawn || false,
+                  withdrawnAmount: ch.withdrawnAmount,
+                  fullCustomer: c,
+                  chitObject: ch,
+                });
+              }
             }
           });
         }
@@ -108,7 +120,6 @@ export const ChitGroupDetailScreen: React.FC<{ route: any; navigation: any }> = 
       // Sort by ticket number
       matched.sort((a, b) => Number(a.ticketNumber) - Number(b.ticketNumber));
 
-      // Enrolled members are strictly based on actual customer chits
       setEnrolledMembers(matched);
       setAllCustomers(customers);
     } catch (e) {
@@ -219,24 +230,62 @@ export const ChitGroupDetailScreen: React.FC<{ route: any; navigation: any }> = 
   const paidMembersCount = enrolledMembers.filter((m) => m.paymentStatus === 'PAID').length;
   const pendingMembersCount = enrolledMembers.length - paidMembersCount;
 
+  // Exact Web calculations:
+  // 1. Total Enrolled Value: sum of all member chit values (or fallback to count * group value)
+  const enrolledTotalChitValueSum = enrolledMembers.reduce((sum, m) => {
+    return sum + (Number(m.chitValue) || Number(group?.value) || 100000);
+  }, 0) || (enrolledMembers.length * Number(chitValue));
+
+  // 2. Scheme breakdown counts
+  const fixedCount = enrolledMembers.filter((m) =>
+    (m.scheme || '').toUpperCase().includes('FIX')
+  ).length;
+  const regularCount = enrolledMembers.filter((m) =>
+    (m.scheme || '').toUpperCase().includes('REG')
+  ).length;
+  const auctionCount = enrolledMembers.filter((m) =>
+    (m.scheme || '').toUpperCase().includes('AUC')
+  ).length;
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
 
-      {/* 1. Deep Navy Header Banner (Reference Screen 3) */}
+      {/* 1. Deep Navy Header Banner (Matches Web Group Header Drilldown) */}
       <View style={styles.headerHero}>
         <View style={styles.groupHeroTop}>
           <View style={styles.groupHeroIconBox}>
             <Ionicons name="people" size={26} color={Colors.white} />
           </View>
-          <View style={{ flex: 1, marginLeft: 14 }}>
-            <Text style={styles.groupHeroTitle}>{group.name}</Text>
-            <Text style={styles.groupHeroMembers}>{enrolledMembers.length} Members</Text>
-            <View style={styles.statusPillActive}>
-              <Text style={styles.statusPillActiveText}>{group.status || 'Active'}</Text>
+          <View style={{ flex: 1, marginLeft: 12 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+              <Text style={styles.groupHeroTitle} numberOfLines={1}>{group.name}</Text>
+              <View style={styles.statusPillActive}>
+                <Text style={styles.statusPillActiveText}>{group.status || 'Active'}</Text>
+              </View>
             </View>
+
+            {/* Total Enrolled Value Badge (Identical to Web) */}
+            <View style={styles.totalEnrolledBadge}>
+              <Ionicons name="cash-outline" size={13} color="#78350F" />
+              <Text style={styles.totalEnrolledBadgeText}>
+                Total Enrolled Value: {formatCurrency(enrolledTotalChitValueSum)}
+              </Text>
+            </View>
+
+            {/* Capacity & Scheme Breakdown subtitle (Identical to Web) */}
+            <Text style={styles.groupHeroBreakdown}>
+              {membersCapacity > 0
+                ? `${membersCapacity} Capacity (${enrolledMembers.length} Enrolled)`
+                : `${enrolledMembers.length} Enrolled`}
+              {' • '}
+              <Text style={{ color: '#6EE7B7', fontWeight: '700' }}>{fixedCount} Fixed</Text>
+              {' • '}
+              <Text style={{ color: '#FDE68A', fontWeight: '700' }}>{regularCount} Regular</Text>
+              {' • '}
+              <Text style={{ color: '#E9D5FF', fontWeight: '700' }}>{auctionCount} Auction</Text>
+            </Text>
           </View>
-          <Ionicons name="chevron-forward" size={20} color="rgba(255, 255, 255, 0.6)" />
         </View>
       </View>
 
@@ -365,48 +414,160 @@ export const ChitGroupDetailScreen: React.FC<{ route: any; navigation: any }> = 
         {/* 5. Members List (When Expanded or in MEMBERS tab) */}
         {activeTab === 'MEMBERS' && (
           <View style={styles.enrolledListCard}>
-            <Text style={styles.enrolledListTitle}>Enrolled Members ({enrolledMembers.length})</Text>
-
-            {enrolledMembers.map((item, idx) => (
-              <View key={`${item.customerId}-${idx}`} style={styles.memberItemRow}>
-                <View style={styles.ticketBadge}>
-                  <Text style={styles.ticketBadgeText}>#{item.ticketNumber}</Text>
-                </View>
-
-                <TouchableOpacity
-                  style={{ flex: 1, marginLeft: 10 }}
-                  onPress={() => navigation.navigate('CustomerDetail', { customer: item.fullCustomer })}
-                  activeOpacity={0.7}
-                >
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <Text style={styles.memberNameText}>{item.customerName}</Text>
-                    <Ionicons name="open-outline" size={13} color={Colors.navy.primary} />
-                  </View>
-                  <Text style={styles.memberMetaText}>
-                    {item.customerId} • {item.mobile}
-                  </Text>
-                </TouchableOpacity>
-
-                <View style={{ alignItems: 'flex-end' }}>
-                  <Text style={styles.memberAmountText}>{formatCurrency(item.totalPaid)}</Text>
-                  <View
-                    style={[
-                      styles.statusPillSmall,
-                      item.paymentStatus === 'PAID' ? styles.pillPaid : styles.pillPending,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.statusPillTextSmall,
-                        item.paymentStatus === 'PAID' ? styles.textPaid : styles.textPending,
-                      ]}
-                    >
-                      {item.paymentStatus}
-                    </Text>
-                  </View>
-                </View>
+            <View style={styles.enrolledListHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.enrolledListTitle}>Enrolled Members ({enrolledMembers.length})</Text>
+                <Text style={styles.enrolledListSub}>
+                  Same member details, schemes, and schedule as in Web Dashboard
+                </Text>
               </View>
-            ))}
+            </View>
+
+            {enrolledMembers.length === 0 ? (
+              <View style={styles.emptyMembersBox}>
+                <Ionicons name="people-outline" size={36} color={Colors.textMuted} />
+                <Text style={styles.emptyMembersTitle}>No customers enrolled in this group yet</Text>
+                <Text style={styles.emptyMembersSub}>
+                  Tap "Add Member" above to begin enrollment.
+                </Text>
+              </View>
+            ) : (
+              enrolledMembers.map((item, idx) => {
+                const isPaid = item.paymentStatus === 'PAID';
+                const schemeName = (item.scheme || 'Regular').trim();
+                const schemeUpper = schemeName.toUpperCase();
+                const isFix = schemeUpper.includes('FIX');
+                const isAuc = schemeUpper.includes('AUC');
+
+                return (
+                  <View key={`${item.customerId}-${idx}`} style={styles.memberCardPremium}>
+                    {/* Header Row: Ticket #, Name & ID, Scheme & Payment Status Badges */}
+                    <View style={styles.memberCardHeader}>
+                      <View style={styles.ticketBadge}>
+                        <Text style={styles.ticketBadgeText}>#{item.ticketNumber}</Text>
+                      </View>
+
+                      <TouchableOpacity
+                        style={{ flex: 1, marginHorizontal: 10, justifyContent: 'center' }}
+                        onPress={() =>
+                          navigation.navigate('CustomerSchedule', {
+                            customer: item.fullCustomer,
+                            chit: item.chitObject,
+                            groupId: group.id || group.name,
+                            groupName: group.name,
+                          })
+                        }
+                        activeOpacity={0.7}
+                      >
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                          <Text style={styles.memberNameText} numberOfLines={1}>
+                            {item.customerName}
+                          </Text>
+                          <Ionicons name="calendar-outline" size={13} color={Colors.gold.dark} />
+                        </View>
+                        <Text style={styles.memberCustIdText}>ID: {item.customerId}</Text>
+                      </TouchableOpacity>
+
+                      <View style={{ alignItems: 'flex-end', gap: 4 }}>
+                        {/* Scheme Pill (Emerald for Fixed, Purple for Auction, Amber for Regular) */}
+                        <View
+                          style={[
+                            styles.schemePillWeb,
+                            isFix
+                              ? styles.schemePillFix
+                              : isAuc
+                              ? styles.schemePillAuc
+                              : styles.schemePillReg,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.schemePillWebText,
+                              isFix
+                                ? styles.schemeTextFix
+                                : isAuc
+                                ? styles.schemeTextAuc
+                                : styles.schemeTextReg,
+                            ]}
+                          >
+                            {schemeName}
+                          </Text>
+                        </View>
+
+                        {/* Payment Status Pill */}
+                        <View style={[styles.statusPillWeb, isPaid ? styles.statusPillPaid : styles.statusPillDue]}>
+                          <Text style={[styles.statusPillWebText, isPaid ? styles.statusTextPaid : styles.statusTextDue]}>
+                            {isPaid ? 'PAID' : 'DUE'}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+
+                    {/* Specifications Grid: Mobile, Duration, Monthly Due, Chit Value */}
+                    <View style={styles.memberSpecGrid}>
+                      <View style={[styles.memberSpecCol, { flex: 1.2 }]}>
+                        <Text style={styles.memberSpecLabel}>MOBILE</Text>
+                        <TouchableOpacity
+                          style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}
+                          onPress={() => {
+                            if (item.mobile && item.mobile !== '—') {
+                              Linking.openURL(`tel:${item.mobile.replace(/\D/g, '')}`).catch(() => {});
+                            }
+                          }}
+                        >
+                          <Ionicons name="call-outline" size={11} color={Colors.navy.primary} />
+                          <Text style={styles.memberSpecValHighlight} numberOfLines={1}>{item.mobile}</Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      <View style={[styles.memberSpecCol, { flex: 0.8, alignItems: 'center' }]}>
+                        <Text style={styles.memberSpecLabel}>DUR</Text>
+                        <Text style={styles.memberSpecVal}>{item.duration || duration}m</Text>
+                      </View>
+
+                      <View style={[styles.memberSpecCol, { flex: 1.1, alignItems: 'center' }]}>
+                        <Text style={styles.memberSpecLabel}>MONTHLY DUE</Text>
+                        <Text style={styles.memberSpecVal}>{formatCurrency(item.monthlyInstallment)}</Text>
+                      </View>
+
+                      <View style={[styles.memberSpecCol, { flex: 1.2, alignItems: 'flex-end' }]}>
+                        <Text style={styles.memberSpecLabel}>CHIT VALUE</Text>
+                        <Text style={styles.memberSpecValBold}>{formatCurrency(item.chitValue)}</Text>
+                      </View>
+                    </View>
+
+                    {/* Bottom Action Bar: Due Chart & Profile (Same as Web App) */}
+                    <View style={styles.memberActionBar}>
+                      <TouchableOpacity
+                        style={styles.dueChartBtn}
+                        onPress={() =>
+                          navigation.navigate('CustomerSchedule', {
+                            customer: item.fullCustomer,
+                            chit: item.chitObject,
+                            groupId: group.id || group.name,
+                            groupName: group.name,
+                          })
+                        }
+                        activeOpacity={0.85}
+                      >
+                        <Ionicons name="calendar-outline" size={13} color={Colors.white} />
+                        <Text style={styles.dueChartBtnText}>Due Chart</Text>
+                        <Ionicons name="arrow-forward" size={12} color={Colors.white} />
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={styles.profileBtn}
+                        onPress={() => navigation.navigate('CustomerDetail', { customer: item.fullCustomer })}
+                        activeOpacity={0.8}
+                      >
+                        <Ionicons name="person-outline" size={13} color={Colors.textSecondary} />
+                        <Text style={styles.profileBtnText}>Profile</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                );
+              })
+            )}
           </View>
         )}
 
@@ -775,13 +936,37 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 6,
-    marginTop: 4,
   },
   statusPillActiveText: {
     color: '#34D399',
     fontSize: 10,
     fontWeight: '800',
     textTransform: 'uppercase',
+  },
+  totalEnrolledBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FCD34D',
+    alignSelf: 'flex-start',
+    marginTop: 6,
+  },
+  totalEnrolledBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#78350F',
+  },
+  groupHeroBreakdown: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.85)',
+    marginTop: 5,
+    lineHeight: 16,
   },
 
   // 2. Overlapping Specs Card
@@ -980,69 +1165,223 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  enrolledListTitle: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: Colors.text,
-    marginBottom: 12,
-  },
-  memberItemRow: {
+  enrolledListHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
+    justifyContent: 'space-between',
+    marginBottom: 16,
+    paddingBottom: 12,
     borderBottomWidth: 1,
-    borderColor: Colors.borderLight,
+    borderBottomColor: Colors.borderLight,
+  },
+  enrolledListTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: Colors.text,
+  },
+  enrolledListSub: {
+    fontSize: 11,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  emptyMembersBox: {
+    paddingVertical: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  emptyMembersTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+    textAlign: 'center',
+  },
+  emptyMembersSub: {
+    fontSize: 11,
+    color: Colors.textMuted,
+    textAlign: 'center',
+  },
+
+  // Premium Member Card (1:1 Web Mirror)
+  memberCardPremium: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 14,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  memberCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
   },
   ticketBadge: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: '#FFECC2',
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
     alignItems: 'center',
     justifyContent: 'center',
   },
   ticketBadgeText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '800',
-    color: Colors.gold.text,
+    color: '#92400E',
   },
   memberNameText: {
     fontSize: 14,
-    fontWeight: '700',
-    color: Colors.text,
-  },
-  memberMetaText: {
-    fontSize: 11,
-    fontWeight: '500',
-    color: Colors.textSecondary,
-    marginTop: 2,
-  },
-  memberAmountText: {
-    fontSize: 13,
     fontWeight: '800',
     color: Colors.text,
+    maxWidth: 160,
   },
-  statusPillSmall: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 5,
-    marginTop: 2,
+  memberCustIdText: {
+    fontSize: 10,
+    fontFamily: 'monospace',
+    color: Colors.textMuted,
+    marginTop: 1,
   },
-  pillPaid: {
-    backgroundColor: Colors.successLight,
+  schemePillWeb: {
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
+    borderRadius: 12,
+    borderWidth: 1,
   },
-  pillPending: {
-    backgroundColor: Colors.warningLight,
+  schemePillFix: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#A7F3D0',
   },
-  statusPillTextSmall: {
+  schemeTextFix: {
+    color: '#065F46',
+  },
+  schemePillAuc: {
+    backgroundColor: '#F3E8FF',
+    borderColor: '#DDD6FE',
+  },
+  schemeTextAuc: {
+    color: '#6B21A8',
+  },
+  schemePillReg: {
+    backgroundColor: '#FFFBEB',
+    borderColor: '#FDE68A',
+  },
+  schemeTextReg: {
+    color: '#92400E',
+  },
+  schemePillWebText: {
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  statusPillWeb: {
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
+    borderRadius: 12,
+  },
+  statusPillPaid: {
+    backgroundColor: '#D1FAE5',
+  },
+  statusTextPaid: {
+    color: '#065F46',
+  },
+  statusPillDue: {
+    backgroundColor: '#FEF3C7',
+  },
+  statusTextDue: {
+    color: '#92400E',
+  },
+  statusPillWebText: {
+    fontSize: 10,
+    fontWeight: '800',
+  },
+
+  // 4-Column Spec Grid
+  memberSpecGrid: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    marginBottom: 10,
+  },
+  memberSpecCol: {
+    justifyContent: 'center',
+  },
+  memberSpecLabel: {
     fontSize: 9,
     fontWeight: '700',
+    color: Colors.textMuted,
+    letterSpacing: 0.4,
+    marginBottom: 2,
   },
-  textPaid: {
-    color: Colors.success,
+  memberSpecVal: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.text,
   },
-  textPending: {
-    color: Colors.warning,
+  memberSpecValBold: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: Colors.navy.primary,
+  },
+  memberSpecValHighlight: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.navy.primary,
+  },
+
+  // Action Buttons Bar
+  memberActionBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  dueChartBtn: {
+    flex: 1.2,
+    backgroundColor: '#9A6D25',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    paddingVertical: 8,
+    borderRadius: 10,
+    shadowColor: '#9A6D25',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  dueChartBtnText: {
+    color: Colors.white,
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  profileBtn: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  profileBtnText: {
+    color: Colors.textSecondary,
+    fontSize: 11,
+    fontWeight: '700',
   },
   addMemberBtn: {
     backgroundColor: Colors.navy.primary,
