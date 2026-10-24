@@ -47,7 +47,6 @@ const ReceiptSchema = new mongoose_1.Schema({
     pdfS3Key: { type: String },
     status: { type: String, enum: ['ACTIVE', 'CANCELLED'], default: 'ACTIVE' },
 }, { timestamps: true });
-ReceiptSchema.index({ receiptNumber: 1 });
 ReceiptSchema.index({ paymentId: 1 });
 ReceiptSchema.index({ customerId: 1 });
 exports.Receipt = mongoose_1.default.model('Receipt', ReceiptSchema);

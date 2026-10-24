@@ -61,7 +61,6 @@ const PaymentSchema = new mongoose_1.Schema({
     notes: { type: String },
     idempotencyKey: { type: String, unique: true, sparse: true },
 }, { timestamps: true });
-PaymentSchema.index({ paymentNumber: 1 });
 PaymentSchema.index({ transactionReference: 1 });
 PaymentSchema.index({ customerId: 1 });
 PaymentSchema.index({ chitGroupId: 1 });

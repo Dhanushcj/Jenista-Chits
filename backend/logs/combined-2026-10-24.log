@@ -1,0 +1,25 @@
+{"level":"info","message":"MongoDB Connected: ac-lb3lkqy-shard-00-00.lttiogk.mongodb.net","timestamp":"2026-10-24T05:58:42.024Z"}
+{"level":"info","message":"Server running in development mode on port 3000","timestamp":"2026-10-24T05:58:42.036Z"}
+{"errorCode":"UNAUTHORIZED","level":"error","statusCode":401,"timestamp":"2026-10-24T06:57:04.388Z"}
+{"errorCode":"UNAUTHORIZED","level":"error","statusCode":401,"timestamp":"2026-10-24T06:57:04.395Z"}
+{"errorCode":"UNAUTHORIZED","level":"error","statusCode":401,"timestamp":"2026-10-24T06:57:04.398Z"}
+{"errorCode":"UNAUTHORIZED","level":"error","statusCode":401,"timestamp":"2026-10-24T06:57:04.403Z"}
+{"level":"info","message":"MongoDB Connected: ac-lb3lkqy-shard-00-00.lttiogk.mongodb.net","timestamp":"2026-10-24T08:40:27.625Z"}
+{"level":"info","message":"Server running in development mode on port 3000","timestamp":"2026-10-24T08:40:27.634Z"}
+{"level":"error","message":"[\n  {\n    \"expected\": \"string\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      \"body\",\n      \"identifier\"\n    ],\n    \"message\": \"Invalid input: expected string, received undefined\"\n  },\n  {\n    \"origin\": \"string\",\n    \"code\": \"too_small\",\n    \"minimum\": 6,\n    \"inclusive\": true,\n    \"path\": [\n      \"body\",\n      \"password\"\n    ],\n    \"message\": \"Password must be at least 6 characters\"\n  }\n]","name":"ZodError","timestamp":"2026-10-24T08:41:50.779Z"}
+{"level":"info","message":"MongoDB Connected: ac-lb3lkqy-shard-00-00.lttiogk.mongodb.net","timestamp":"2026-10-24T08:42:22.436Z"}
+{"level":"info","message":"Server running in development mode on port 3000","timestamp":"2026-10-24T08:42:22.446Z"}
+{"level":"info","message":"MongoDB Connected: ac-lb3lkqy-shard-00-00.lttiogk.mongodb.net","timestamp":"2026-10-24T08:42:28.165Z"}
+{"level":"info","message":"Server running in development mode on port 3000","timestamp":"2026-10-24T08:42:28.175Z"}
+{"level":"info","message":"MongoDB Connected: ac-lb3lkqy-shard-00-00.lttiogk.mongodb.net","timestamp":"2026-10-24T08:42:40.889Z"}
+{"level":"info","message":"Server running in development mode on port 3000","timestamp":"2026-10-24T08:42:40.915Z"}
+{"level":"info","message":"MongoDB Connected: ac-lb3lkqy-shard-00-00.lttiogk.mongodb.net","timestamp":"2026-10-24T08:42:48.348Z"}
+{"level":"info","message":"Server running in development mode on port 3000","timestamp":"2026-10-24T08:42:48.368Z"}
+{"level":"info","message":"MongoDB Connected: ac-lb3lkqy-shard-00-00.lttiogk.mongodb.net","timestamp":"2026-10-24T08:42:56.024Z"}
+{"level":"info","message":"Server running in development mode on port 3000","timestamp":"2026-10-24T08:42:56.034Z"}
+{"level":"info","message":"MongoDB Connected: ac-lb3lkqy-shard-00-00.lttiogk.mongodb.net","timestamp":"2026-10-24T08:56:59.423Z"}
+{"level":"info","message":"Server running in development mode on port 3000","timestamp":"2026-10-24T08:56:59.432Z"}
+{"errorCode":"UNAUTHORIZED","level":"error","statusCode":401,"timestamp":"2026-10-24T10:12:32.769Z"}
+{"errorCode":"UNAUTHORIZED","level":"error","statusCode":401,"timestamp":"2026-10-24T10:12:46.784Z"}
+{"errorCode":"UNAUTHORIZED","level":"error","statusCode":401,"timestamp":"2026-10-24T10:16:33.062Z"}
+{"errorCode":"UNAUTHORIZED","level":"error","statusCode":401,"timestamp":"2026-10-24T11:08:28.477Z"}

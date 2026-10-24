@@ -56,7 +56,6 @@ const ChitPlanSchema = new mongoose_1.Schema({
     branchId: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Branch' },
     createdBy: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User', required: true },
 }, { timestamps: true });
-ChitPlanSchema.index({ planCode: 1 });
 ChitPlanSchema.index({ planType: 1 });
 ChitPlanSchema.index({ status: 1 });
 exports.ChitPlan = mongoose_1.default.model('ChitPlan', ChitPlanSchema);

@@ -56,7 +56,6 @@ const ChitGroupSchema = new mongoose_1.Schema({
     planSnapshot: { type: mongoose_1.Schema.Types.Mixed, required: true },
     createdBy: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User', required: true },
 }, { timestamps: true });
-ChitGroupSchema.index({ groupCode: 1 });
 ChitGroupSchema.index({ planId: 1 });
 ChitGroupSchema.index({ branchId: 1 });
 ChitGroupSchema.index({ status: 1 });

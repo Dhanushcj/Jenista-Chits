@@ -57,6 +57,5 @@ const PayoutSchema = new mongoose_1.Schema({
     processedBy: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User' },
     paidAt: { type: Date },
 }, { timestamps: true });
-PayoutSchema.index({ payoutNumber: 1 });
 PayoutSchema.index({ chitGroupId: 1, cycleId: 1 });
 exports.Payout = mongoose_1.default.model('Payout', PayoutSchema);
